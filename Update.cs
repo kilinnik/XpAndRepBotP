@@ -11,6 +11,9 @@ using System.Collections.Generic;
 using Telegram.Bot.Types.Enums;
 using System.Text.RegularExpressions;
 using Telegram.Bot.Types.ReplyMarkups;
+using static XpAndRepBot.Consts;
+using System.Data;
+using System.IO;
 
 namespace XpAndRepBot
 {
@@ -44,20 +47,24 @@ namespace XpAndRepBot
             {"/warn", new WarnCommand() },
             {"/unwarn", new UnwarnCommand() },
             {"/unw", new UnwarnCommand() },
-            {"/l", new TopLexiconCommand() }
+            {"/l", new TopLexiconCommand() },
+            {"/tge", new TgEmpressCommand() },
+            {"/role", new RoleCommand() },
+            {"/roles", new RolesCommand() },
+             {"/nfc", new NfcCommand() }
         };
 
         public async Task HandleUpdateAsync(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken)
         {
-            Debug.WriteLine(JsonSerializer.Serialize(update)); //м 1813723228 я 1882185833
+            Debug.WriteLine(JsonSerializer.Serialize(update));
             //inline buttons
             if (update.Type == UpdateType.CallbackQuery)
             {
                 await HandleCallbackQuery(botClient, update.CallbackQuery);
             }
             using var db = new InfoContext();
-            DataClasses1DataContext dbl = new(Consts.ConStrindDbLexicon);//мч          ич
-            if ((update.Message?.Chat?.Id is long id && (id == -1001412057284 || id == -1001489033044 || id == 1813723228 || id == 1882185833)) && !update.Message.From.IsBot)
+            DataClasses1DataContext dbl = new(ConStringDbLexicon);
+            if (update.Message?.Chat?.Id is long id && (id == IgruhaChatID || id == MyChatID || id == MID || id == IID) && !update.Message.From.IsBot)
             {
                 var idUser = update.Message.From.Id;
                 var user = db.TableUsers.FirstOrDefault(x => x.Id == idUser);
@@ -66,6 +73,20 @@ namespace XpAndRepBot
                     user = new Users(idUser, update.Message.From.FirstName + " " + update.Message.From.LastName, 0, 0, 0);
                     db.TableUsers.Add(user);
                 }
+                if (user.Name == "0") user.Name = update.Message.From.FirstName + " " + update.Message.From.LastName;
+                //var ids = db.TableUsers.Select(x => x.Id).ToList();
+                //for (int i = 0; i < db.TableUsers.Count(); i++)
+                //{
+                //    try
+                //    {
+                //        var chatMember = await botClient.GetChatMemberAsync(IgruhaChatID, ids[i]);
+                //        var user3 = db.TableUsers.First(x => x.Id == ids[i]);
+                //        var user2 = chatMember.User;
+                //        user3.Name = user2.FirstName + " " + user2.LastName;
+                //        db.SaveChanges();
+                //    }
+                //    catch { }
+                //}
                 db.SaveChanges();
                 //снятие варна 
                 if (user.Warns > 0)
@@ -97,21 +118,35 @@ namespace XpAndRepBot
                     if (update.Message.ReplyToMessage != null && !update.Message.ReplyToMessage.From.IsBot) await ChatHandlers.ReputationUp(botClient, update, db, mes, cancellationToken);
                     //запрос к chatgdp
                     Match match = Regex.Match(mes, @"^.*?([\w/]+)");
-                    if (!_commands.ContainsKey(match.Value) && ((update?.Message?.ReplyToMessage != null && update?.Message?.ReplyToMessage.From.Id == 5759112130) || (mes.Contains("@XpAndRepBot") && !mes.Contains('/')) || update.Message?.Chat?.Id == 1813723228 || id == 1882185833))
+                    if (!_commands.ContainsKey(match.Value) && ((update?.Message?.ReplyToMessage != null && update?.Message?.ReplyToMessage.From.Id == BotID) || (mes.Contains("@XpAndRepBot") && !mes.Contains('/')) || update.Message?.Chat?.Id == MID || id == IID))
                     {
-#pragma warning disable CS4014 // Так как этот вызов не ожидается, выполнение существующего метода продолжается до тех пор, пока вызов не будет завершен
                         ChatHandlers.RequestChatGPT(botClient, update, mes, cancellationToken);
-#pragma warning restore CS4014 // Так как этот вызов не ожидается, выполнение существующего метода продолжается до тех пор, пока вызов не будет завершен
                     }
                     //создание и заполнение таблицы
                     ChatHandlers.CreateAndFillTable(user, mes, dbl);
                     //повышение уровня
-                    if (update.Message?.Chat?.Id != 1813723228) await ChatHandlers.LvlUp(botClient, update, db, user, cancellationToken);
+                    if (update.Message?.Chat?.Id != MID) await ChatHandlers.LvlUp(botClient, update, db, user, cancellationToken);
                     //команды
                     if (_commands.ContainsKey(match.Value))
                     {
                         var command = _commands[match.Value];
-                        await command.ExecuteAsync(botClient, update, cancellationToken);
+                        command.ExecuteAsync(botClient, update, cancellationToken);
+                    }
+                    var users = db.TableUsers.Where(x => x.Roles.StartsWith(mes.Substring(1)) || x.Roles.Contains(", " + mes.Substring(1))).ToList();
+                    if (mes[0] == '@' && users.Count > 0) botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, text: $"{user.Name} призывает {ChatHandlers.Mention(users)}", parseMode: ParseMode.Html, cancellationToken: cancellationToken);
+                    List<string> words = new List<string>();
+                    if (user.Nfc == true)
+                    {
+                        using (StreamReader reader = new StreamReader("bw.txt"))
+                        {
+                            while (!reader.EndOfStream)
+                            {
+                                string line = reader.ReadLine();
+                                words.Add(line.ToLower());
+                            }
+                        }
+                        bool containsWord = words.Any(w => mes.ToLower() == w);
+                        if (containsWord) botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, text: ChatHandlers.Nfc(user, db), cancellationToken: cancellationToken);
                     }
                 }
             }

@@ -24,17 +24,30 @@ namespace XpAndRepBot
         public int Rep { get; set; }
         public int Warns { get; set; }
         public DateTime LastTime { get; set; }
+        public string Roles { get; set; }
+        public bool? Nfc { get; set; }
+        public DateTime StartNfc { get; set; }
+        public long BestTime { get; set; }
         public Users (long id, string name, int lvl, int curXp, int rep)
         {
-            Id = id; Name = name;  Lvl = lvl; CurXp = curXp; Rep = rep; Warns = 0; LastTime = DateTime.ParseExact("1900-01-01 00:00:00.000", "yyyy-MM-dd HH:mm:ss.fff", System.Globalization.CultureInfo.InvariantCulture);
+            Id = id; 
+            Name = name;  
+            Lvl = lvl;
+            CurXp = curXp; 
+            Rep = rep; Warns = 0;
+            LastTime = DateTime.ParseExact("1900-01-01 00:00:00.000", "yyyy-MM-dd HH:mm:ss.fff", System.Globalization.CultureInfo.InvariantCulture);
+            Nfc = false; 
+            StartNfc = DateTime.ParseExact("1900-01-01 00:00:00.000", "yyyy-MM-dd HH:mm:ss.fff", System.Globalization.CultureInfo.InvariantCulture);
+            BestTime = 0;
         }
     }
+
     public class InfoContext : DbContext
     {
         public DbSet<Users> TableUsers { get; set; }
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         {
-            optionsBuilder.UseSqlServer(Consts.ConStrindDbUsers);
+            optionsBuilder.UseSqlServer(Consts.ConStringDbUsers);
         }
     }
 }

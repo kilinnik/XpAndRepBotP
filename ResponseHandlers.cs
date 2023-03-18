@@ -14,21 +14,23 @@ using System;
 using System.IO;
 using System.Net;
 using Telegram.Bot.Types.InputFiles;
+using System.Data.SqlClient;
+using static XpAndRepBot.Consts;
 
 namespace XpAndRepBot
 {
     public class ResponseHandlers
-    { 
+    {
         public static string Me(Update update)
         {
             using var db = new InfoContext();
-            DataClasses1DataContext dbl = new(Consts.ConStrindDbLexicon);
+            DataClasses1DataContext dbl = new(ConStringDbLexicon);
             var idUser = update.Message.From.Id;
             var user = db.TableUsers.First(x => x.Id == idUser);
             int count = dbl.ExecuteQuery<int>($"SELECT COUNT(*) FROM dbo.[{user.Id}]").Single();
             var words = dbl.ExecuteQuery<Words>($"select top 10 * from dbo.[{user.Id}] order by [Count] desc").ToList();
             List<string> keycaps = new() { EmojiList.Keycap_1, EmojiList.Keycap_2, EmojiList.Keycap_3, EmojiList.Keycap_4, EmojiList.Keycap_5, EmojiList.Keycap_6, EmojiList.Keycap_7, EmojiList.Keycap_8, EmojiList.Keycap_9, EmojiList.Keycap_10 };
-            var result = new StringBuilder($"👨‍❤️‍👨 Имя: {user.Name}\n⭐️ Lvl: {user.Lvl}({user.CurXp}/{Сalculation.Genlvl(user.Lvl + 1)})\n🏆 Место в топе по уровню: {Сalculation.PlaceLvl(user.Id, db.TableUsers)}\n😇 Rep: {user.Rep}\n🥇 Место в топе по репутации: {Сalculation.PlaceRep(user.Id, db.TableUsers)}\n🔤 Лексикон: {count} слов\n🎖 Место в топе по лексикону: {Сalculation.PlaceLexicon(user)}\n🤬 Кол-во варнов: {user.Warns}/3\n🗓 Дата последнего варна/снятия варна: {user.LastTime:yyyy-MM-dd}\n");
+            var result = new StringBuilder($"👨‍❤️‍👨 Имя: {user.Name}\n⭐️ Lvl: {user.Lvl}({user.CurXp}/{Сalculation.Genlvl(user.Lvl + 1)})\n🎭 Роли: {user.Roles}\n🏆 Место в топе по уровню: {Сalculation.PlaceLvl(user.Id, db.TableUsers)}\n😇 Rep: {user.Rep}\n🥇 Место в топе по репутации: {Сalculation.PlaceRep(user.Id, db.TableUsers)}\n🔤 Лексикон: {count} слов\n🎖 Место в топе по лексикону: {Сalculation.PlaceLexicon(user)}\n🤬 Кол-во варнов: {user.Warns}/3\n🗓 Дата последнего варна/снятия варна: {user.LastTime:yyyy-MM-dd}\n");
             result.AppendLine("📖 Личный топ слов:");
             for (int i = 0; i < words.Count; i++)
             {
@@ -89,7 +91,7 @@ namespace XpAndRepBot
         public static string MeWords(CallbackQuery callbackQuery, int number)
         {
             using var db = new InfoContext();
-            DataClasses1DataContext dbl = new(Consts.ConStrindDbLexicon);
+            DataClasses1DataContext dbl = new(ConStringDbLexicon);
             var idUser = callbackQuery.Message.ReplyToMessage.From.Id;
             var user = db.TableUsers.First(x => x.Id == idUser);
             Match match = Regex.Match(callbackQuery.Message.Text, @"^\d+");
@@ -117,18 +119,50 @@ namespace XpAndRepBot
 
         public static string TopWords(int number)
         {
-            DataClasses1DataContext dbl = new(Consts.ConStrindDbLexicon);
-            var tablesName = dbl.ExecuteQuery<string>("SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES").ToArray();
-            var query = new StringBuilder($"select [Word], SUM([Count]) as [Count] from (select [Word],[Count] from [dbo].[{tablesName[0]}]");
-            for (int i = 1; i < tablesName.Length; i++)
+            var connectionString = ConStringDbLexicon;
+            var tables = new List<string>();
+            using (var connection = new SqlConnection(connectionString))
             {
-                query.Append($" union select [Word],[Count] from [dbo].[{tablesName[i]}]");
+                connection.Open();
+                var cmd = new SqlCommand("SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES", connection)
+                {
+                    CommandTimeout = 0
+                };
+                using var reader = cmd.ExecuteReader();
+                while (reader.Read())
+                {
+                    tables.Add(reader.GetString(0));
+                }
+            }
+            var query = new StringBuilder($"select [Word], SUM([Count]) as [Count] from (select [Word],[Count] from [dbo].[{tables[0]}]");
+            for (int i = 1; i < tables.Count; i++)
+            {
+                query.Append($" union select [Word],[Count] from [dbo].[{tables[i]}]");
             }
             query.Append($") as a group by [Word] order by [Count] desc");
-            var words = dbl.ExecuteQuery<Words>(query.ToString()).ToList().Skip(number).Take(50);
+
+            var words = new List<Words>();
+            using (var connection = new SqlConnection(connectionString))
+            {
+                connection.Open();
+                var cmd = new SqlCommand(query.ToString(), connection)
+                {
+                    CommandTimeout = 0
+                };
+                using var reader = cmd.ExecuteReader();
+                while (reader.Read())
+                {
+                    words.Add(new Words
+                    {
+                        Word = reader.GetString(0),
+                        Count = reader.GetInt32(1)
+                    });
+                }
+            }
+
             int k = number + 1;
             var result = new StringBuilder("📖 Топ слов:\n");
-            foreach (var word in words)
+            foreach (var word in words.Skip(number).Take(50))
             {
                 result.AppendLine($"{k}. {word.Word} || {word.Count}");
                 k++;
@@ -138,7 +172,7 @@ namespace XpAndRepBot
 
         public static string TopLexicon(int number)
         {
-            DataClasses1DataContext dbl = new(Consts.ConStrindDbLexicon);
+            DataClasses1DataContext dbl = new(ConStringDbLexicon);
             var tablesName = dbl.ExecuteQuery<string>("SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES").ToArray();
             var query = new StringBuilder($"SELECT '{tablesName[0]}' AS TableName, COUNT(*) AS CountRow FROM [dbo].[{tablesName[0]}]");
             for (int i = 1; i < tablesName.Length; i++)
@@ -158,7 +192,7 @@ namespace XpAndRepBot
             return result.ToString();
         }
 
-        static readonly HashSet<string> repWords = new () { "+", "спс", "спасибо", "пасиб", "сяб", "класс", "молодец", "жиза", "гц", "грац", "дяк", "дякую", "база", "соглы", "danke schön", "danke", "данке", "viele danke", "👍", "👍🏼", "👍🏽", "👍🏾", "👍🏿" };
+        static readonly HashSet<string> repWords = new() { "+", "спс", "спасибо", "пасиб", "сяб", "класс", "молодец", "жиза", "гц", "грац", "дяк", "дякую", "база", "соглы", "danke schön", "danke", "данке", "viele danke", "👍", "👍🏼", "👍🏽", "👍🏾", "👍🏿" };
 
         public static string RepUp(Update update, InfoContext db, string mes)
         {
@@ -182,7 +216,7 @@ namespace XpAndRepBot
         public static async Task<string> RequestChatGPT(string prompt)
         {
             // Replace YOUR_API_KEY with your actual API key
-            string apiKey = Consts.SSHKey;
+            string apiKey = SSHKey;
 
             // Set the model for the request
             string model = "text-davinci-003";
@@ -249,6 +283,44 @@ namespace XpAndRepBot
                 throw;
             }
             return null;
+        }
+
+        public static string GiveRole(long id, string role)
+        {
+            using var db = new InfoContext();
+            var user = db.TableUsers.First(x => x.Id == id);
+            if (user.Roles is null) user.Roles = role;
+            else user.Roles += $", {role}";
+            db.SaveChanges();
+            return $"{user.Name} получает роль {role}";
+        }
+
+        public static string GetRoles()
+        {
+            using var db = new InfoContext();
+            var roleUsers = db.TableUsers.Where(u => u.Roles != null).Select(u => new { u.Roles, u.Name }).ToList();
+            var roles = roleUsers.SelectMany(u => u.Roles.Split(", ", StringSplitOptions.RemoveEmptyEntries)).Distinct().ToList();
+            var sb = new StringBuilder("Список ролей:\n");
+            foreach (var role in roles)
+            {
+                var users = roleUsers.Where(u => u.Roles.StartsWith(role) || u.Roles.Contains(", " + role)).Select(u => u.Name).ToList();
+                string userList = string.Join(", ", users);
+                sb.Append($"<code>{role}</code>: {userList}\n");
+            }
+            return sb.ToString();
+        }
+
+        public static string PrintNfc()
+        {
+            using var db = new InfoContext();
+            List<Users> usersWithNfc = db.TableUsers.Where(u => u.Nfc == true).OrderBy(u => u.StartNfc).ToList();
+            string res = "Без мата 👮‍♂️\n";
+            for (int i = 0; i < usersWithNfc.Count; i++)
+            {
+                var ts = DateTime.Now - usersWithNfc[i].StartNfc;
+                res += $"{i+1} || {usersWithNfc[i].Name}: {ts.Days} d, {ts.Hours} h, {ts.Minutes} m.\n";
+            }
+            return res;
         }
     }
 }

@@ -20,7 +20,7 @@ namespace XpAndRepBot
 
         public static int PlaceLexicon(Users user)
         {
-            DataClasses1DataContext dbl = new(Consts.ConStrindDbLexicon);
+            DataClasses1DataContext dbl = new(Consts.ConStringDbLexicon);
             var tablesName = dbl.ExecuteQuery<string>("SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES").ToArray();
             var query = new StringBuilder($"SELECT '{tablesName[0]}' AS TableName, COUNT(*) AS CountRow FROM [dbo].[{tablesName[0]}]");
             for (int i = 1; i < tablesName.Length; i++)

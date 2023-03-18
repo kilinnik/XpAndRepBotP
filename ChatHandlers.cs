@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Telegram.Bot;
 using Telegram.Bot.Types;
+using Microsoft.EntityFrameworkCore;
 
 namespace XpAndRepBot
 {
@@ -79,7 +80,6 @@ namespace XpAndRepBot
             {
                 string cleanedWord = Regex.Replace(listWords[i], @"[^\w\d\s]", "");
                 if (string.IsNullOrWhiteSpace(cleanedWord)) continue;
-                //cleanedWord = cleanedWord.Replace("'", "''");
                 cleanedWord = cleanedWord.ToLower();
                 validWords.Add(cleanedWord);
             }
@@ -96,6 +96,29 @@ namespace XpAndRepBot
                     dbl.SubmitChanges();
                 }
             }
+        }
+
+        public static string Mention(List <Users> users)
+        {
+            string res = "";
+            using var db = new InfoContext();
+            var count = users.Count - 1;
+            for (int i = 0; i < count; i++)
+            {
+                res += $"<a href=\"tg://user?id={users[i].Id}\">{users[i].Name}</a>, ";
+            }
+            res += $"<a href=\"tg://user?id={users[count].Id}\">{users[count].Name}</a>.";
+            return res;
+        }
+
+        public static string Nfc(Users user, DbContext db)
+        {
+            user.Nfc = false;
+            TimeSpan ts = DateTime.Now - user.StartNfc;
+            if (ts.Ticks > user.BestTime) user.BestTime = ts.Ticks;
+            db.SaveChanges();
+            string t = string.Format("{0} d, {1} h, {2} m.", ts.Days, ts.Hours, ts.Minutes);
+            return $"{user.Name} нарушил условия no fuck challenge. Время: {t}";
         }
     }
 }
