@@ -10,7 +10,6 @@ using System.Linq;
 using static XpAndRepBot.Consts;
 using Telegram.Bot.Types.Enums;
 using System;
-using Newtonsoft.Json.Linq;
 
 namespace XpAndRepBot
 {
@@ -253,6 +252,7 @@ namespace XpAndRepBot
         public async Task ExecuteAsync(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken)
         {
             if (update.Message.From.Id == IID)
+            {
                 try
                 {
                     await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, replyToMessageId: update.Message.ReplyToMessage.MessageId, text: ResponseHandlers.Warn(update), cancellationToken: cancellationToken);
@@ -261,6 +261,7 @@ namespace XpAndRepBot
                 {
                     await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, text: ResponseHandlers.Warn(update), cancellationToken: cancellationToken);
                 }
+            }
         }
     }
 
@@ -269,6 +270,7 @@ namespace XpAndRepBot
         public async Task ExecuteAsync(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken)
         {
             if (update.Message.From.Id == IID)
+            {
                 try
                 {
                     await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, replyToMessageId: update.Message.ReplyToMessage.MessageId, text: ResponseHandlers.Unwarn(update), cancellationToken: cancellationToken);
@@ -277,6 +279,7 @@ namespace XpAndRepBot
                 {
                     await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, text: ResponseHandlers.Unwarn(update), cancellationToken: cancellationToken);
                 }
+            }
         }
     }
 
@@ -300,14 +303,16 @@ namespace XpAndRepBot
         public async Task ExecuteAsync(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken)
         {
             if (update.Message.From.Id == IID)
+            {
                 try
                 {
-                    await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, replyToMessageId: update.Message.ReplyToMessage.MessageId, text: $"{ResponseHandlers.GiveRole(update.Message.ReplyToMessage.From.Id, update.Message.Text.Substring(6))}", cancellationToken: cancellationToken);
+                    await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, replyToMessageId: update.Message.ReplyToMessage.MessageId, text: ResponseHandlers.GiveRole(update.Message.ReplyToMessage.From.Id, update.Message.Text[6..]), cancellationToken: cancellationToken);
                 }
                 catch
                 {
-                    await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, text: $"{ResponseHandlers.GiveRole(update.Message.ReplyToMessage.From.Id, update.Message.Text.Substring(6))}", cancellationToken: cancellationToken);
+                    await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, text: ResponseHandlers.GiveRole(update.Message.ReplyToMessage.From.Id, update.Message.Text[6..]), cancellationToken: cancellationToken);
                 }
+            }
         }
     }
 
@@ -317,11 +322,11 @@ namespace XpAndRepBot
         {
             try
             {
-                await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, replyToMessageId: update.Message.MessageId, text: $"{ResponseHandlers.GetRoles()}", parseMode: ParseMode.Html, cancellationToken: cancellationToken);
+                await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, replyToMessageId: update.Message.MessageId, text: ResponseHandlers.GetRoles(), parseMode: ParseMode.Html, cancellationToken: cancellationToken);
             }
             catch
             {
-                await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, text: $"{ResponseHandlers.GetRoles()}", parseMode: ParseMode.Html, cancellationToken: cancellationToken);
+                await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, text: ResponseHandlers.GetRoles(), parseMode: ParseMode.Html, cancellationToken: cancellationToken);
             }
         }
     }
@@ -346,7 +351,7 @@ namespace XpAndRepBot
             else
             {
                 user.Nfc = true;
-                DateTime date = new DateTime(2009, 8, 1, 12, 0, 0);
+                DateTime date = new(2009, 8, 1, 12, 0, 0);
                 int result = DateTime.Compare(user.StartNfc, date);
                 string bestTime = "";
                 if (user.BestTime > 0)
@@ -364,6 +369,39 @@ namespace XpAndRepBot
                 {
                     await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, text: $"Вы начали новую серию без мата 👮‍♂️\nУдачи 😉", cancellationToken: cancellationToken);
                 }
+            }
+        }
+    }
+
+    public class UnRoleCommand : ICommand
+    {
+        public async Task ExecuteAsync(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken)
+        {
+            if (update.Message.From.Id == IID)
+            {
+                try
+                {
+                    await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, replyToMessageId: update.Message.MessageId, text: ResponseHandlers.DelRole(update.Message.ReplyToMessage.From.Id, update.Message.Text[5..]), cancellationToken: cancellationToken);
+                }
+                catch
+                {
+                    await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, text: ResponseHandlers.DelRole(update.Message.ReplyToMessage.From.Id, update.Message.Text[5..]), parseMode: ParseMode.Html, cancellationToken: cancellationToken);
+                }
+            }
+        }
+    }
+
+    public class BalabobaCommand : ICommand
+    {
+        public async Task ExecuteAsync(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken)
+        {
+            try
+            {
+                await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, replyToMessageId: update.Message.MessageId, text: await ResponseHandlers.RequestBalaboba(update.Message.Text[3..]), cancellationToken: cancellationToken);
+            }
+            catch
+            {
+                _ = await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, text: await ResponseHandlers.RequestBalaboba(update.Message.Text[3..]), cancellationToken: cancellationToken);
             }
         }
     }

@@ -51,7 +51,9 @@ namespace XpAndRepBot
             {"/tge", new TgEmpressCommand() },
             {"/role", new RoleCommand() },
             {"/roles", new RolesCommand() },
-             {"/nfc", new NfcCommand() }
+            {"/nfc", new NfcCommand() },
+            {"/unr", new UnRoleCommand() },
+             {"/b", new BalabobaCommand() }
         };
 
         public async Task HandleUpdateAsync(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken)
@@ -118,7 +120,7 @@ namespace XpAndRepBot
                     if (update.Message.ReplyToMessage != null && !update.Message.ReplyToMessage.From.IsBot) await ChatHandlers.ReputationUp(botClient, update, db, mes, cancellationToken);
                     //запрос к chatgdp
                     Match match = Regex.Match(mes, @"^.*?([\w/]+)");
-                    if (!_commands.ContainsKey(match.Value) && ((update?.Message?.ReplyToMessage != null && update?.Message?.ReplyToMessage.From.Id == BotID) || (mes.Contains("@XpAndRepBot") && !mes.Contains('/')) || update.Message?.Chat?.Id == MID || id == IID))
+                    if (!_commands.ContainsKey(match.Value) && ((update?.Message?.ReplyToMessage != null && update?.Message?.ReplyToMessage.From.Id == BotID) || (mes.Contains("@XpAndRepBot") && !mes.Contains('/')) || id == MID || id == IID))
                     {
                         ChatHandlers.RequestChatGPT(botClient, update, mes, cancellationToken);
                     }
@@ -134,10 +136,10 @@ namespace XpAndRepBot
                     }
                     var users = db.TableUsers.Where(x => x.Roles.StartsWith(mes.Substring(1)) || x.Roles.Contains(", " + mes.Substring(1))).ToList();
                     if (mes[0] == '@' && users.Count > 0) botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, text: $"{user.Name} призывает {ChatHandlers.Mention(users)}", parseMode: ParseMode.Html, cancellationToken: cancellationToken);
-                    List<string> words = new List<string>();
+                    List<string> words = new();
                     if (user.Nfc == true)
                     {
-                        using (StreamReader reader = new StreamReader("bw.txt"))
+                        using (StreamReader reader = new("bw.txt"))
                         {
                             while (!reader.EndOfStream)
                             {
@@ -206,68 +208,68 @@ namespace XpAndRepBot
             string newText = "";
             int number;
             Match match;
-            switch (option)
-            {
-                case "backmw":
-                    match = Regex.Match(callbackQuery.Message.Text, @"^\d+");
-                    if (match.Success)
-                    {
-                        number = int.Parse(match.Value);
-                        if (number > 10) newText = ResponseHandlers.MeWords(callbackQuery, -10);
-                    }
-                    inlineKeyboard = inlineKeyboardMW;
-                    break;
-                case "nextmw":
-                    newText = ResponseHandlers.MeWords(callbackQuery, 10);
-                    inlineKeyboard = inlineKeyboardMW;
-                    break;
-                case "backtw":
-                    match = Regex.Match(callbackQuery.Message.Text, @"\n\d+", RegexOptions.Multiline);
-                    number = int.Parse(match.Value);
-                    if (number > 50) newText = ResponseHandlers.TopWords(number - 51);
-                    inlineKeyboard = inlineKeyboardTW;
-                    break;
-                case "nexttw":
-                    match = Regex.Match(callbackQuery.Message.Text, @"\n\d+", RegexOptions.Multiline);
-                    newText = ResponseHandlers.TopWords(int.Parse(match.Value) + 49);
-                    inlineKeyboard = inlineKeyboardTW;
-                    break;
-                case "backtl":
-                    match = Regex.Match(callbackQuery.Message.Text, @"\n\d+", RegexOptions.Multiline);
-                    number = int.Parse(match.Value);
-                    if (number > 50) newText = ResponseHandlers.TopLvl(number - 51);
-                    inlineKeyboard = inlineKeyboardTL;
-                    break;
-                case "nexttl":
-                    match = Regex.Match(callbackQuery.Message.Text, @"\n\d+", RegexOptions.Multiline);
-                    newText = ResponseHandlers.TopLvl(int.Parse(match.Value) + 49);
-                    inlineKeyboard = inlineKeyboardTL;
-                    break;
-                case "backtr":
-                    match = Regex.Match(callbackQuery.Message.Text, @"\n\d+", RegexOptions.Multiline);
-                    number = int.Parse(match.Value);
-                    if (number > 50) newText = ResponseHandlers.TopRep(number - 51);
-                    inlineKeyboard = inlineKeyboardTR;
-                    break;
-                case "nexttr":
-                    match = Regex.Match(callbackQuery.Message.Text, @"\n\d+", RegexOptions.Multiline);
-                    newText = ResponseHandlers.TopRep(int.Parse(match.Value) + 49);
-                    inlineKeyboard = inlineKeyboardTR;
-                    break;
-                case "backl":
-                    match = Regex.Match(callbackQuery.Message.Text, @"\n\d+", RegexOptions.Multiline);
-                    number = int.Parse(match.Value);
-                    if (number > 50) newText = ResponseHandlers.TopLexicon(number - 51);
-                    inlineKeyboard = inlineKeyboardL;
-                    break;
-                case "nextl":
-                    match = Regex.Match(callbackQuery.Message.Text, @"\n\d+", RegexOptions.Multiline);
-                    newText = ResponseHandlers.TopLexicon(int.Parse(match.Value) + 49);
-                    inlineKeyboard = inlineKeyboardL;
-                    break;
-            }
             try
             {
+                switch (option)
+                {
+                    case "backmw":
+                        match = Regex.Match(callbackQuery.Message.Text, @"^\d+");
+                        if (match.Success)
+                        {
+                            number = int.Parse(match.Value);
+                            if (number > 10) newText = ResponseHandlers.MeWords(callbackQuery, -10);
+                        }
+                        inlineKeyboard = inlineKeyboardMW;
+                        break;
+                    case "nextmw":
+                        newText = ResponseHandlers.MeWords(callbackQuery, 10);
+                        inlineKeyboard = inlineKeyboardMW;
+                        break;
+                    case "backtw":
+                        match = Regex.Match(callbackQuery.Message.Text, @"\n\d+", RegexOptions.Multiline);
+                        number = int.Parse(match.Value);
+                        if (number > 50) newText = ResponseHandlers.TopWords(number - 51);
+                        inlineKeyboard = inlineKeyboardTW;
+                        break;
+                    case "nexttw":
+                        match = Regex.Match(callbackQuery.Message.Text, @"\n\d+", RegexOptions.Multiline);
+                        newText = ResponseHandlers.TopWords(int.Parse(match.Value) + 49);
+                        inlineKeyboard = inlineKeyboardTW;
+                        break;
+                    case "backtl":
+                        match = Regex.Match(callbackQuery.Message.Text, @"\n\d+", RegexOptions.Multiline);
+                        number = int.Parse(match.Value);
+                        if (number > 50) newText = ResponseHandlers.TopLvl(number - 51);
+                        inlineKeyboard = inlineKeyboardTL;
+                        break;
+                    case "nexttl":
+                        match = Regex.Match(callbackQuery.Message.Text, @"\n\d+", RegexOptions.Multiline);
+                        newText = ResponseHandlers.TopLvl(int.Parse(match.Value) + 49);
+                        inlineKeyboard = inlineKeyboardTL;
+                        break;
+                    case "backtr":
+                        match = Regex.Match(callbackQuery.Message.Text, @"\n\d+", RegexOptions.Multiline);
+                        number = int.Parse(match.Value);
+                        if (number > 50) newText = ResponseHandlers.TopRep(number - 51);
+                        inlineKeyboard = inlineKeyboardTR;
+                        break;
+                    case "nexttr":
+                        match = Regex.Match(callbackQuery.Message.Text, @"\n\d+", RegexOptions.Multiline);
+                        newText = ResponseHandlers.TopRep(int.Parse(match.Value) + 49);
+                        inlineKeyboard = inlineKeyboardTR;
+                        break;
+                    case "backl":
+                        match = Regex.Match(callbackQuery.Message.Text, @"\n\d+", RegexOptions.Multiline);
+                        number = int.Parse(match.Value);
+                        if (number > 50) newText = ResponseHandlers.TopLexicon(number - 51);
+                        inlineKeyboard = inlineKeyboardL;
+                        break;
+                    case "nextl":
+                        match = Regex.Match(callbackQuery.Message.Text, @"\n\d+", RegexOptions.Multiline);
+                        newText = ResponseHandlers.TopLexicon(int.Parse(match.Value) + 49);
+                        inlineKeyboard = inlineKeyboardL;
+                        break;
+                }
                 await botClient.EditMessageTextAsync(chatId: chatId, replyMarkup: inlineKeyboard, messageId: messageId, text: newText);
             }
             catch { }

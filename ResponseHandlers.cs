@@ -16,6 +16,8 @@ using System.Net;
 using Telegram.Bot.Types.InputFiles;
 using System.Data.SqlClient;
 using static XpAndRepBot.Consts;
+using RestSharp;
+using System.Text.Json;
 
 namespace XpAndRepBot
 {
@@ -284,6 +286,27 @@ namespace XpAndRepBot
             }
             return null;
         }
+        public static async Task<string> RequestBalaboba(string str)
+        {
+            var url = "https://yandex.ru/lab/api/yalm/text3";
+            var json = JsonSerializer.Serialize(new { filter = 1, intro = 0, query = str });
+            using var client = new HttpClient();
+            using var request = new HttpRequestMessage(HttpMethod.Post, url);
+            request.Content = new StringContent(json, Encoding.UTF8, "application/json");
+            using var response = await client.SendAsync(request);
+            var responseContent = await response.Content.ReadAsStringAsync();
+            var result = JObject.Parse(responseContent);
+            string answer;
+            try
+            {
+                answer = result["text"].ToString();
+            }
+            catch
+            {
+                answer = "Произошла ошибка. Попробуйте повторить запрос.";
+            }
+            return answer.TrimStart('\n', '\r');
+        }
 
         public static string GiveRole(long id, string role)
         {
@@ -293,6 +316,20 @@ namespace XpAndRepBot
             else user.Roles += $", {role}";
             db.SaveChanges();
             return $"{user.Name} получает роль {role}";
+        }
+
+        public static string DelRole(long id, string role)
+        {
+            using var db = new InfoContext();
+            var user = db.TableUsers.First(x => x.Id == id);
+            string separator = ", ";
+            string prefix = role + separator;
+            string suffix = separator + role;
+            if (user.Roles == role) user.Roles = null;
+            else if (user.Roles.StartsWith(prefix)) user.Roles = user.Roles.Replace(prefix, "");
+            else user.Roles = user.Roles.Replace(suffix, "");
+            db.SaveChanges();
+            return $"{user.Name} теряет роль {role}";
         }
 
         public static string GetRoles()
@@ -318,7 +355,7 @@ namespace XpAndRepBot
             for (int i = 0; i < usersWithNfc.Count; i++)
             {
                 var ts = DateTime.Now - usersWithNfc[i].StartNfc;
-                res += $"{i+1} || {usersWithNfc[i].Name}: {ts.Days} d, {ts.Hours} h, {ts.Minutes} m.\n";
+                res += $"{i + 1} || {usersWithNfc[i].Name}: {ts.Days} d, {ts.Hours} h, {ts.Minutes} m.\n";
             }
             return res;
         }
