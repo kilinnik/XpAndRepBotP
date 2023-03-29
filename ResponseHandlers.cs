@@ -16,27 +16,43 @@ using System.Net;
 using Telegram.Bot.Types.InputFiles;
 using System.Data.SqlClient;
 using static XpAndRepBot.Consts;
-using RestSharp;
 using System.Text.Json;
+using Microsoft.Extensions.DependencyInjection;
+using System.Threading;
+using Mirror.ChatGpt;
+using Mirror.ChatGpt.Models.ChatGpt;
+using Dapper;
 
 namespace XpAndRepBot
 {
     public class ResponseHandlers
     {
-        public static string Me(Update update)
+        public static async Task<string> Me(long idUser)
         {
             using var db = new InfoContext();
-            DataClasses1DataContext dbl = new(ConStringDbLexicon);
-            var idUser = update.Message.From.Id;
+            string conString = ConStringDbLexicon; // Replace with your connection string
+            using var connection = new SqlConnection(conString);
+            await connection.OpenAsync();
             var user = db.TableUsers.First(x => x.Id == idUser);
-            int count = dbl.ExecuteQuery<int>($"SELECT COUNT(*) FROM dbo.[{user.Id}]").Single();
-            var words = dbl.ExecuteQuery<Words>($"select top 10 * from dbo.[{user.Id}] order by [Count] desc").ToList();
-            List<string> keycaps = new() { EmojiList.Keycap_1, EmojiList.Keycap_2, EmojiList.Keycap_3, EmojiList.Keycap_4, EmojiList.Keycap_5, EmojiList.Keycap_6, EmojiList.Keycap_7, EmojiList.Keycap_8, EmojiList.Keycap_9, EmojiList.Keycap_10 };
-            var result = new StringBuilder($"👨‍❤️‍👨 Имя: {user.Name}\n⭐️ Lvl: {user.Lvl}({user.CurXp}/{Сalculation.Genlvl(user.Lvl + 1)})\n🎭 Роли: {user.Roles}\n🏆 Место в топе по уровню: {Сalculation.PlaceLvl(user.Id, db.TableUsers)}\n😇 Rep: {user.Rep}\n🥇 Место в топе по репутации: {Сalculation.PlaceRep(user.Id, db.TableUsers)}\n🔤 Лексикон: {count} слов\n🎖 Место в топе по лексикону: {Сalculation.PlaceLexicon(user)}\n🤬 Кол-во варнов: {user.Warns}/3\n🗓 Дата последнего варна/снятия варна: {user.LastTime:yyyy-MM-dd}\n");
+            using var command = new SqlCommand($"SELECT COUNT(*) FROM dbo.[{user.Id}]", connection);
+            int count = (int)await command.ExecuteScalarAsync();
+            using var command2 = new SqlCommand($"select top 10 * from dbo.[{user.Id}] order by [Count] desc", connection);
+            using var reader = await command2.ExecuteReaderAsync();
+            var words = new List<Words>();
+            while (await reader.ReadAsync())
+            {
+                var word = new Words
+                {
+                    Word = reader.GetString(0),
+                    Count = reader.GetInt32(1)
+                };
+                words.Add(word);
+            }
+            var result = new StringBuilder($"👨‍❤️‍👨 Имя: {user.Name}\n🕰 Время последнего сообщения: {user.TimeLastMes:yy/MM/dd HH:mm:ss}\n⭐️ Lvl: {user.Lvl}({user.CurXp}/{Сalculation.Genlvl(user.Lvl + 1)})\n🎭 Роли: {user.Roles}\n🏆 Место в топе по уровню: {Сalculation.PlaceLvl(user.Id, db.TableUsers)}\n😇 Rep: {user.Rep}\n🥇 Место в топе по репутации: {Сalculation.PlaceRep(user.Id, db.TableUsers)}\n🔤 Лексикон: {count} слов\n🎖 Место в топе по лексикону: {Сalculation.PlaceLexicon(user)}\n🤬 Кол-во варнов: {user.Warns}/3\n🗓 Дата последнего варна/снятия варна: {user.LastTime:yyyy-MM-dd}\n");
             result.AppendLine("📖 Личный топ слов:");
             for (int i = 0; i < words.Count; i++)
             {
-                result.AppendLine($"{keycaps[i]} {words[i].Word} || {words[i].Count}");
+                result.AppendLine($"{Keycaps[i]} {words[i].Word} || {words[i].Count}");
             }
             return result.ToString();
         }
@@ -90,48 +106,53 @@ namespace XpAndRepBot
             return resultBuilder.ToString();
         }
 
-        public static string MeWords(CallbackQuery callbackQuery, int number)
+        public static async Task<string> MeWords(CallbackQuery callbackQuery, int number)
         {
             using var db = new InfoContext();
-            DataClasses1DataContext dbl = new(ConStringDbLexicon);
             var idUser = callbackQuery.Message.ReplyToMessage.From.Id;
             var user = db.TableUsers.First(x => x.Id == idUser);
             Match match = Regex.Match(callbackQuery.Message.Text, @"^\d+");
-            List<Words> words;
+
+            var words = new List<Words>();
             int i = 0;
+            var query = $"SELECT * FROM [dbo].[{user.Id}] ORDER BY [Count] DESC OFFSET @Offset ROWS FETCH NEXT 10 ROWS ONLY";
+            var offset = 10;
+
             if (match.Success)
             {
-                words = dbl.ExecuteQuery<Words>($"select * from dbo.[{user.Id}] order by [Count] desc OFFSET {int.Parse(match.Value) + number - 1} ROWS FETCH NEXT 10 ROWS ONLY").ToList();
-                i = int.Parse(match.Value) + number;
+                offset = int.Parse(match.Value) + number - 1;
+                i = offset + 1;
             }
             else
             {
-                words = dbl.ExecuteQuery<Words>($"select * from dbo.[{user.Id}] order by [Count] desc OFFSET 10 ROWS FETCH NEXT 10 ROWS ONLY").ToList();
-                i = 11;
+                i = 11;              
             }
-            var result = new StringBuilder();
 
-            foreach (var word in words)
+            using var connection = new SqlConnection(ConStringDbLexicon);
+            var result = new StringBuilder();
+            var rows = await connection.QueryAsync<Words>(query, new { Offset = offset });
+            rows.ToList().ForEach((word) =>
             {
+                words.Add(word);
                 result.AppendLine($"{i}. {word.Word} || {word.Count}");
                 i++;
-            }
+            });
             return result.ToString();
         }
 
-        public static string TopWords(int number)
+        public static async Task<string> TopWords(int number)
         {
             var connectionString = ConStringDbLexicon;
             var tables = new List<string>();
             using (var connection = new SqlConnection(connectionString))
             {
-                connection.Open();
+                await connection.OpenAsync();
                 var cmd = new SqlCommand("SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES", connection)
                 {
                     CommandTimeout = 0
                 };
-                using var reader = cmd.ExecuteReader();
-                while (reader.Read())
+                using var reader = await cmd.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
                 {
                     tables.Add(reader.GetString(0));
                 }
@@ -146,13 +167,13 @@ namespace XpAndRepBot
             var words = new List<Words>();
             using (var connection = new SqlConnection(connectionString))
             {
-                connection.Open();
+                await connection.OpenAsync();
                 var cmd = new SqlCommand(query.ToString(), connection)
                 {
                     CommandTimeout = 0
                 };
-                using var reader = cmd.ExecuteReader();
-                while (reader.Read())
+                using var reader = await cmd.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
                 {
                     words.Add(new Words
                     {
@@ -172,29 +193,57 @@ namespace XpAndRepBot
             return result.ToString();
         }
 
-        public static string TopLexicon(int number)
+        public static async Task<string> TopLexicon(int number)
         {
-            DataClasses1DataContext dbl = new(ConStringDbLexicon);
-            var tablesName = dbl.ExecuteQuery<string>("SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES").ToArray();
+            using var connection = new SqlConnection(ConStringDbLexicon);
+            await connection.OpenAsync();
+
+            var tablesName = new List<string>();
+            using (var command = new SqlCommand("SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES", connection))
+            using (var reader = await command.ExecuteReaderAsync())
+            {
+                while (await reader.ReadAsync())
+                {
+                    tablesName.Add(reader.GetString(0));
+                }
+            }
+
             var query = new StringBuilder($"SELECT '{tablesName[0]}' AS TableName, COUNT(*) AS CountRow FROM [dbo].[{tablesName[0]}]");
-            for (int i = 1; i < tablesName.Length; i++)
+            for (int i = 1; i < tablesName.Count; i++)
             {
                 query.Append($" UNION ALL SELECT '{tablesName[i]}' AS TableName, COUNT(*) AS CountRow FROM [dbo].[{tablesName[i]}]");
             }
-            var lexicons = dbl.ExecuteQuery<Lexicon>(query.ToString()).ToList().OrderByDescending(b => b.CountRow).Skip(number).Take(50);
-            int k = number + 1;
-            var result = new StringBuilder("🎖 Топ по лексикону:\n");
-            using var db = new InfoContext();
-            foreach (var lexicon in lexicons)
+
+            var lexicons = new List<Lexicon>();
+            using (var command = new SqlCommand(query.ToString(), connection))
+            using (var reader = await command.ExecuteReaderAsync())
             {
-                var user = db.TableUsers.First(x => x.Id.ToString() == lexicon.TableName);
-                result.AppendLine($"{k}. {user.Name} || {lexicon.CountRow}");
-                k++;
+                while (await reader.ReadAsync())
+                {
+                    lexicons.Add(new Lexicon
+                    {
+                        TableName = reader.GetString(0),
+                        CountRow = reader.GetInt32(1)
+                    });
+                }
             }
+
+            var topLexicons = lexicons.OrderByDescending(b => b.CountRow).Skip(number).Take(50).ToList();
+            var result = new StringBuilder("🎖 Топ по лексикону:\n");
+
+            using var db = new InfoContext();
+            foreach (var lexicon in topLexicons)
+            {
+                var user = db.TableUsers.FirstOrDefault(x => x.Id.ToString() == lexicon.TableName);
+                if (user != null)
+                {
+                    result.AppendLine($"{number + 1}. {user.Name} || {lexicon.CountRow}");
+                    number++;
+                }
+            }
+
             return result.ToString();
         }
-
-        static readonly HashSet<string> repWords = new() { "+", "спс", "спасибо", "пасиб", "сяб", "класс", "молодец", "жиза", "гц", "грац", "дяк", "дякую", "база", "соглы", "danke schön", "danke", "данке", "viele danke", "👍", "👍🏼", "👍🏽", "👍🏾", "👍🏿" };
 
         public static string RepUp(Update update, InfoContext db, string mes)
         {
@@ -215,35 +264,58 @@ namespace XpAndRepBot
             return "";
         }
 
+        //public static async Task<string> RequestChatGPT(string prompt)
+        //{
+        //    var services = new ServiceCollection();
+        //    const string token = Token;
+        //    services.AddBingClient(new() { Token = token });
+        //    var app = services.BuildServiceProvider();
+        //    var service = app.GetRequiredService<BingClient>();
+        //    var chatCts = new CancellationTokenSource();
+        //    //Set timeout by CancellationTokenSource
+        //    chatCts.CancelAfter(TimeSpan.FromMinutes(5));
+        //    var res = await service.ChatAsync(new(prompt), chatCts.Token);
+        //    return res.Text;
+        //}
+
         public static async Task<string> RequestChatGPT(string prompt)
         {
-            // Replace YOUR_API_KEY with your actual API key
-            string apiKey = SSHKey;
-
-            // Set the model for the request
-            string model = "text-davinci-003";
-
-            // Create the JSON object for the request body
-            var jsonObject = new JObject { { "model", model }, { "prompt", prompt }, { "max_tokens", 2048 } };
-
-            // Send the request to the OpenAI API
-            using var client = new HttpClient();
-            client.DefaultRequestHeaders.Add("Authorization", $"Bearer {apiKey}");
-
-            var response = await client.PostAsync("https://api.openai.com/v1/completions", new StringContent(jsonObject.ToString(), Encoding.UTF8, "application/json"));
-
-            // Read the response and extract the answer
-            var json = await response.Content.ReadAsStringAsync();
-            var result = JObject.Parse(json);
-            string answer;
-            try
+            var services = new ServiceCollection();
+            services.AddChatGptClient(new() { ApiKey = SSHKey });
+            var app = services.BuildServiceProvider();
+            var service = app.GetRequiredService<ChatGptClient>();
+            var res = await service.ChatAsync(new ChatCompletionRequest
             {
-                answer = result["choices"][0]["text"].ToString();
-            }
-            catch { answer = "Произошла ошибка. Попробуйте повторить вопрос."; }
+                Model = "gpt-3.5-turbo", //model name,required. only gpt-3.5-turbo or gpt-3.5-turbo-0301 can be chosen now
+                Messages = new[] { new MessageEntry { Role = Roles.System, Content = prompt } }
+            }, default);
+            return res.Choices[0].Message.Content;
+            //string apiKey = SSHKey;
 
-            // Return the answer
-            return answer.TrimStart('\n', '\r');
+            //// Set the model for the request
+            //string model = "text-davinci-003";
+
+            //// Create the JSON object for the request body
+            //var jsonObject = new JObject { { "model", model }, { "prompt", prompt }, { "max_tokens", 2048 } };
+
+            //// Send the request to the OpenAI API
+            //using var client = new HttpClient();
+            //client.DefaultRequestHeaders.Add("Authorization", $"Bearer {apiKey}");
+
+            //var response = await client.PostAsync("https://api.openai.com/v1/completions", new StringContent(jsonObject.ToString(), Encoding.UTF8, "application/json"));
+
+            //// Read the response and extract the answer
+            //var json = await response.Content.ReadAsStringAsync();
+            //var result = JObject.Parse(json);
+            //string answer;
+            //try
+            //{
+            //    answer = result["choices"][0]["text"].ToString();
+            //}
+            //catch { answer = "Произошла ошибка. Попробуйте повторить вопрос."; }
+
+            //// Return the answer
+            //return answer.TrimStart('\n', '\r');
         }
 
         public static async Task<InputOnlineFile> GenerateImage(IOpenAIService sdk, string promt)

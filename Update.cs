@@ -76,6 +76,8 @@ namespace XpAndRepBot
                     db.TableUsers.Add(user);
                 }
                 if (user.Name == "0") user.Name = update.Message.From.FirstName + " " + update.Message.From.LastName;
+                user.TimeLastMes = update.Message.Date.AddHours(3);
+                db.SaveChanges();
                 //var ids = db.TableUsers.Select(x => x.Id).ToList();
                 //for (int i = 0; i < db.TableUsers.Count(); i++)
                 //{
@@ -89,11 +91,10 @@ namespace XpAndRepBot
                 //    }
                 //    catch { }
                 //}
-                db.SaveChanges();
                 //снятие варна 
                 if (user.Warns > 0)
                 {
-                    TimeSpan difference = user.LastTime - DateTime.Now;
+                    TimeSpan difference = DateTime.Now - user.LastTime;
                     if (difference.TotalDays >= 30)
                     {
                         user.Warns--;
@@ -147,7 +148,8 @@ namespace XpAndRepBot
                                 words.Add(line.ToLower());
                             }
                         }
-                        bool containsWord = words.Any(w => mes.ToLower() == w);
+                        string[] messageWords = mes.Split(new char[] { ' ', ',', '.', '!', '?' }, StringSplitOptions.RemoveEmptyEntries);
+                        bool containsWord = messageWords.Any(w => words.Contains(w.ToLower()));
                         if (containsWord) botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, text: ChatHandlers.Nfc(user, db), cancellationToken: cancellationToken);
                     }
                 }
@@ -217,23 +219,23 @@ namespace XpAndRepBot
                         if (match.Success)
                         {
                             number = int.Parse(match.Value);
-                            if (number > 10) newText = ResponseHandlers.MeWords(callbackQuery, -10);
+                            if (number > 10) newText = await ResponseHandlers.MeWords(callbackQuery, -10);
                         }
                         inlineKeyboard = inlineKeyboardMW;
                         break;
                     case "nextmw":
-                        newText = ResponseHandlers.MeWords(callbackQuery, 10);
+                        newText = await ResponseHandlers.MeWords(callbackQuery, 10);
                         inlineKeyboard = inlineKeyboardMW;
                         break;
                     case "backtw":
                         match = Regex.Match(callbackQuery.Message.Text, @"\n\d+", RegexOptions.Multiline);
                         number = int.Parse(match.Value);
-                        if (number > 50) newText = ResponseHandlers.TopWords(number - 51);
+                        if (number > 50) newText = await ResponseHandlers.TopWords(number - 51);
                         inlineKeyboard = inlineKeyboardTW;
                         break;
                     case "nexttw":
                         match = Regex.Match(callbackQuery.Message.Text, @"\n\d+", RegexOptions.Multiline);
-                        newText = ResponseHandlers.TopWords(int.Parse(match.Value) + 49);
+                        newText = await ResponseHandlers.TopWords(int.Parse(match.Value) + 49);
                         inlineKeyboard = inlineKeyboardTW;
                         break;
                     case "backtl":
@@ -261,12 +263,12 @@ namespace XpAndRepBot
                     case "backl":
                         match = Regex.Match(callbackQuery.Message.Text, @"\n\d+", RegexOptions.Multiline);
                         number = int.Parse(match.Value);
-                        if (number > 50) newText = ResponseHandlers.TopLexicon(number - 51);
+                        if (number > 50) newText = await ResponseHandlers.TopLexicon(number - 51);
                         inlineKeyboard = inlineKeyboardL;
                         break;
                     case "nextl":
                         match = Regex.Match(callbackQuery.Message.Text, @"\n\d+", RegexOptions.Multiline);
-                        newText = ResponseHandlers.TopLexicon(int.Parse(match.Value) + 49);
+                        newText = await ResponseHandlers.TopLexicon(int.Parse(match.Value) + 49);
                         inlineKeyboard = inlineKeyboardL;
                         break;
                 }

@@ -45,13 +45,27 @@ namespace XpAndRepBot
                     InlineKeyboardButton.WithCallbackData("Вперёд", "nextmw"),
                 }
             });
-            try
+            if (update?.Message?.ReplyToMessage != null && !update.Message.ReplyToMessage.From.IsBot)
             {
-                await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, replyMarkup: inlineKeyboard, replyToMessageId: update.Message.MessageId, text: ResponseHandlers.Me(update), cancellationToken: cancellationToken);
+                try
+                {
+                    await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, replyMarkup: inlineKeyboard, replyToMessageId: update.Message.MessageId, text: await ResponseHandlers.Me(update.Message.ReplyToMessage.From.Id), cancellationToken: cancellationToken);
+                }
+                catch
+                {
+                    await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, text: await ResponseHandlers.Me(update.Message.ReplyToMessage.From.Id), cancellationToken: cancellationToken);
+                }
             }
-            catch
+            else
             {
-                await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, text: ResponseHandlers.Me(update), cancellationToken: cancellationToken);
+                try
+                {
+                    await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, replyMarkup: inlineKeyboard, replyToMessageId: update.Message.MessageId, text: await ResponseHandlers.Me(update.Message.From.Id), cancellationToken: cancellationToken);
+                }
+                catch
+                {
+                    await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, text: await ResponseHandlers.Me(update.Message.From.Id), cancellationToken: cancellationToken);
+                }
             }
         }
     }
@@ -161,11 +175,11 @@ namespace XpAndRepBot
             });
             try
             {
-                await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, replyMarkup: inlineKeyboard, replyToMessageId: update.Message.MessageId, text: ResponseHandlers.TopWords(0), cancellationToken: cancellationToken);
+                await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, replyMarkup: inlineKeyboard, replyToMessageId: update.Message.MessageId, text: await ResponseHandlers.TopWords(0), cancellationToken: cancellationToken);
             }
             catch
             {
-                await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, replyMarkup: inlineKeyboard, text: ResponseHandlers.TopWords(0), cancellationToken: cancellationToken);
+                await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, replyMarkup: inlineKeyboard, text: await ResponseHandlers.TopWords(0), cancellationToken: cancellationToken);
             }
         }
     }
@@ -184,11 +198,11 @@ namespace XpAndRepBot
             });
             try
             {
-                await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, replyMarkup: inlineKeyboard, replyToMessageId: update.Message.MessageId, text: ResponseHandlers.TopLexicon(0), cancellationToken: cancellationToken);
+                await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, replyMarkup: inlineKeyboard, replyToMessageId: update.Message.MessageId, text: await ResponseHandlers.TopLexicon(0), cancellationToken: cancellationToken);
             }
             catch
             {
-                await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, replyMarkup: inlineKeyboard, text: ResponseHandlers.TopLexicon(0), cancellationToken: cancellationToken);
+                await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, replyMarkup: inlineKeyboard, text: await ResponseHandlers.TopLexicon(0), cancellationToken: cancellationToken);
             }
         }
     }
