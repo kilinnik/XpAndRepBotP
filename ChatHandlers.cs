@@ -7,12 +7,14 @@ using System.Threading.Tasks;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 using Microsoft.EntityFrameworkCore;
+using System.Data.SqlClient;
+using static XpAndRepBot.Consts;
 
 namespace XpAndRepBot
 {
     public class ChatHandlers
     {
-        public static async Task LvlUp(ITelegramBotClient botClient, Update update,  InfoContext db, Users user, CancellationToken cancellationToken)
+        public static async Task LvlUp(ITelegramBotClient botClient, Update update, InfoContext db, Users user, CancellationToken cancellationToken)
         {
             while (user.CurXp >= Сalculation.Genlvl(user.Lvl + 1))
             {
@@ -70,35 +72,42 @@ namespace XpAndRepBot
             }
         }
 
-        public static void CreateAndFillTable(Users user, string mes, DataClasses1DataContext dbl)
+        public static async Task CreateAndFillTable(Users user, string mes)
         {
-            dbl.ExecuteCommand($"IF OBJECT_ID('{user.Id}', 'U') IS NULL  create table \"{user.Id}\" (Word varchar(200) primary key, Count int default 0)");
-            dbl.SubmitChanges();
-            var listWords = mes.Split(new string[] { " ", "\r\n", "\n" }, StringSplitOptions.None);
-            List<string> validWords = new();
-            for (int i = 0; i < listWords.Length; i++)
+            using (SqlConnection connection = new SqlConnection(ConStringDbUsers))
             {
-                string cleanedWord = Regex.Replace(listWords[i], @"[^\w\d\s]", "");
-                if (string.IsNullOrWhiteSpace(cleanedWord)) continue;
-                cleanedWord = cleanedWord.ToLower();
-                validWords.Add(cleanedWord);
-            }
-            foreach (var word in validWords)
-            {
-                try
+                await connection.OpenAsync();
+                SqlCommand createTableCommand = new SqlCommand($"IF OBJECT_ID('{user.Id}', 'U') IS NULL create table \"{user.Id}\" (Word varchar(200) primary key, Count int default 0)", connection);
+                await createTableCommand.ExecuteNonQueryAsync();
+
+                var listWords = mes.Split(new string[] { " ", "\r\n", "\n" }, StringSplitOptions.None);
+                List<string> validWords = new();
+                for (int i = 0; i < listWords.Length; i++)
                 {
-                    dbl.ExecuteCommand($"insert into dbo.\"{user.Id}\" (Word, Count) values ('{word}', 1)");
-                    dbl.SubmitChanges();
+                    string cleanedWord = Regex.Replace(listWords[i], @"[^\w\d\s]", "");
+                    if (string.IsNullOrWhiteSpace(cleanedWord)) continue;
+                    cleanedWord = cleanedWord.ToLower();
+                    validWords.Add(cleanedWord);
                 }
-                catch
+                foreach (var word in validWords)
                 {
-                    dbl.ExecuteCommand($"update dbo.\"{user.Id}\" set [Count] = [Count] + 1 where [Word] = '{word}'");
-                    dbl.SubmitChanges();
+                    try
+                    {
+                        SqlCommand insertCommand = new SqlCommand($"insert into dbo.\"{user.Id}\" (Word, Count) values (@Word, 1)", connection);
+                        insertCommand.Parameters.AddWithValue("@Word", word);
+                        await insertCommand.ExecuteNonQueryAsync();
+                    }
+                    catch
+                    {
+                        SqlCommand updateCommand = new SqlCommand($"update dbo.\"{user.Id}\" set [Count] = [Count] + 1 where [Word] = @Word", connection);
+                        updateCommand.Parameters.AddWithValue("@Word", word);
+                        await updateCommand.ExecuteNonQueryAsync();
+                    }
                 }
             }
         }
 
-        public static string Mention(List <Users> users)
+        public static string Mention(List<Users> users)
         {
             string res = "";
             using var db = new InfoContext();

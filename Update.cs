@@ -65,7 +65,6 @@ namespace XpAndRepBot
                 await HandleCallbackQuery(botClient, update.CallbackQuery);
             }
             using var db = new InfoContext();
-            DataClasses1DataContext dbl = new(ConStringDbLexicon);
             if (update.Message?.Chat?.Id is long id && (id == IgruhaChatID || id == MyChatID || id == MID || id == IID) && !update.Message.From.IsBot)
             {
                 var idUser = update.Message.From.Id;
@@ -118,7 +117,7 @@ namespace XpAndRepBot
                     //опыт
                     user.CurXp += mes.Length;
                     //повышение репутации
-                    if (update.Message.ReplyToMessage != null && !update.Message.ReplyToMessage.From.IsBot) await ChatHandlers.ReputationUp(botClient, update, db, mes, cancellationToken);
+                    if (update.Message.ReplyToMessage != null && (!update.Message.ReplyToMessage.From.IsBot || update.Message.ReplyToMessage.From.Id == BotID)) await ChatHandlers.ReputationUp(botClient, update, db, mes, cancellationToken);
                     //запрос к chatgdp
                     Match match = Regex.Match(mes, @"^.*?([\w/]+)");
                     if (!_commands.ContainsKey(match.Value) && ((update?.Message?.ReplyToMessage != null && update?.Message?.ReplyToMessage.From.Id == BotID) || (mes.Contains("@XpAndRepBot") && !mes.Contains('/')) || id == MID || id == IID))
@@ -126,7 +125,7 @@ namespace XpAndRepBot
                         ChatHandlers.RequestChatGPT(botClient, update, mes, cancellationToken);
                     }
                     //создание и заполнение таблицы
-                    ChatHandlers.CreateAndFillTable(user, mes, dbl);
+                    await ChatHandlers.CreateAndFillTable(user, mes);
                     //повышение уровня
                     if (update.Message?.Chat?.Id != MID) await ChatHandlers.LvlUp(botClient, update, db, user, cancellationToken);
                     //команды

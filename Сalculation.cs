@@ -1,5 +1,8 @@
-﻿using System.Linq;
+﻿using System.Collections.Generic;
+using System.Data.SqlClient;
+using System.Linq;
 using System.Text;
+using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 
 namespace XpAndRepBot
@@ -18,16 +21,35 @@ namespace XpAndRepBot
             return users.IndexOf(users.First(x => x.Id == idUser)) + 1;
         }
 
-        public static int PlaceLexicon(Users user)
+        public static async Task<int> PlaceLexicon(Users user)
         {
-            DataClasses1DataContext dbl = new(Consts.ConStringDbLexicon);
-            var tablesName = dbl.ExecuteQuery<string>("SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES").ToArray();
+            using SqlConnection connection = new(Consts.ConStringDbLexicon);
+            await connection.OpenAsync();
+            SqlCommand command = new SqlCommand("SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES", connection);
+            var tablesName = new List<string>();
+            SqlDataReader reader = await command.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                tablesName.Add(reader.GetString(0));
+            }
+            reader.Close();
+
             var query = new StringBuilder($"SELECT '{tablesName[0]}' AS TableName, COUNT(*) AS CountRow FROM [dbo].[{tablesName[0]}]");
-            for (int i = 1; i < tablesName.Length; i++)
+            for (int i = 1; i < tablesName.Count; i++)
             {
                 query.Append($" UNION ALL SELECT '{tablesName[i]}' AS TableName, COUNT(*) AS CountRow FROM [dbo].[{tablesName[i]}]");
             }
-            var lexicons = dbl.ExecuteQuery<Lexicon>(query.ToString()).OrderByDescending(b => b.CountRow).ToList();
+
+            command.CommandText = query.ToString();
+            reader = await command.ExecuteReaderAsync();
+
+            var lexicons = new List<Lexicon>();
+            while (await reader.ReadAsync())
+            {
+                lexicons.Add(new Lexicon { TableName = reader.GetString(0), CountRow = reader.GetInt32(1) });
+            }
+            reader.Close();
+
             return lexicons.IndexOf(lexicons.First(x => x.TableName == user.Id.ToString())) + 1;
         }
 
