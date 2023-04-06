@@ -25,7 +25,7 @@ namespace XpAndRepBot
         {
             using SqlConnection connection = new(Consts.ConStringDbLexicon);
             await connection.OpenAsync();
-            SqlCommand command = new SqlCommand("SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES", connection);
+            SqlCommand command = new("SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES", connection);
             var tablesName = new List<string>();
             SqlDataReader reader = await command.ExecuteReaderAsync();
             while (await reader.ReadAsync())
@@ -50,7 +50,7 @@ namespace XpAndRepBot
             }
             reader.Close();
 
-            return lexicons.IndexOf(lexicons.First(x => x.TableName == user.Id.ToString())) + 1;
+            return lexicons.OrderByDescending(x => x.CountRow).ToList().IndexOf(lexicons.First(x => x.TableName == user.Id.ToString())) + 1;
         }
 
         public static int Genlvl(int x)

@@ -10,6 +10,8 @@ using System.Linq;
 using static XpAndRepBot.Consts;
 using Telegram.Bot.Types.Enums;
 using System;
+using static OpenAI.GPT3.ObjectModels.SharedModels.IOpenAiModels;
+using System.Runtime.Intrinsics.X86;
 
 namespace XpAndRepBot
 {
@@ -45,11 +47,11 @@ namespace XpAndRepBot
                     InlineKeyboardButton.WithCallbackData("Вперёд", "nextmw"),
                 }
             });
-            if (update?.Message?.ReplyToMessage != null && !update.Message.ReplyToMessage.From.IsBot)
+            if (update?.Message?.ReplyToMessage != null && !update.Message.ReplyToMessage.From.IsBot && update.Message.ReplyToMessage.From.Id != 777000)
             {
                 try
                 {
-                    await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, replyMarkup: inlineKeyboard, replyToMessageId: update.Message.MessageId, text: await ResponseHandlers.Me(update.Message.ReplyToMessage.From.Id), cancellationToken: cancellationToken);
+                    await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, replyMarkup: inlineKeyboard, replyToMessageId: update.Message.ReplyToMessage.MessageId, text: await ResponseHandlers.Me(update.Message.ReplyToMessage.From.Id), cancellationToken: cancellationToken);
                 }
                 catch
                 {
@@ -345,7 +347,7 @@ namespace XpAndRepBot
         }
     }
 
-    public class NfcCommand : ICommand
+    public class NoFuckChallengeCommand : ICommand
     {
         public async Task ExecuteAsync(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken)
         {
@@ -416,6 +418,66 @@ namespace XpAndRepBot
             catch
             {
                 _ = await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, text: await ResponseHandlers.RequestBalaboba(update.Message.Text[3..]), cancellationToken: cancellationToken);
+            }
+        }
+    }
+
+    public class VoteBanCommand : ICommand
+    {
+        public async Task ExecuteAsync(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken)
+        {
+            if (update?.Message?.ReplyToMessage != null && !update.Message.ReplyToMessage.From.IsBot && update.Message.ReplyToMessage.From.Id != 777000)
+            {
+                var db = new InfoContext();
+                long userId1 = update.Message.ReplyToMessage.From.Id;
+                var user1 = db.TableUsers.First(x => x.Id == userId1);
+                long userId2 = update.Message.From.Id;
+                var user2 = db.TableUsers.First(x => x.Id == userId2);
+                var inlineKeyboard = new InlineKeyboardMarkup(new[]
+                {
+                    new[]
+                    {
+                        InlineKeyboardButton.WithCallbackData("Да ✅ - 0", $"y0_{userId1}"),
+                        InlineKeyboardButton.WithCallbackData("Нет ❌ - 0", $"n0_{userId1}"),
+                    }
+                });
+                var chatMember = await botClient.GetChatMemberAsync(update.Message.Chat.Id, userId1, cancellationToken: cancellationToken);
+                if (chatMember.Status != ChatMemberStatus.Administrator && chatMember.Status != ChatMemberStatus.Creator)
+                {
+                    try
+                    {
+                        await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, replyToMessageId: update.Message.ReplyToMessage.MessageId, text: $"{user2.Name} начал голосование за бан {user1.Name}", replyMarkup: inlineKeyboard, cancellationToken: cancellationToken);
+                    }
+                    catch { }
+                }
+            }
+            else
+            {
+                try
+                {
+                    await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, replyToMessageId: update.Message.MessageId, text: "Кого баним? Ответьте на сообщение пользователя. Воутбан можно начинать строго по правилам /r", cancellationToken: cancellationToken);
+                }
+                catch 
+                {
+                    await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, text: "Кого баним? Ответьте на сообщение пользователя. Воутбан можно начинать строго по правилам /r", cancellationToken: cancellationToken);
+                }
+            }
+        }
+    }
+
+    public class BanCommand : ICommand
+    {
+        public async Task ExecuteAsync(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken)
+        {
+            if (update.Message.From.Id == IID)
+            {
+                try
+                {
+
+                    await botClient.BanChatMemberAsync(chatId: update.Message.Chat.Id, userId: update.Message.ReplyToMessage.From.Id, cancellationToken: cancellationToken);
+                    await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, replyToMessageId: update.Message.ReplyToMessage.MessageId, text: $"Пользователь забанен", cancellationToken: cancellationToken);
+                }
+                catch { }
             }
         }
     }

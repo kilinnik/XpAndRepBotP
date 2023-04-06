@@ -21,6 +21,9 @@ using Microsoft.Extensions.DependencyInjection;
 using Mirror.ChatGpt;
 using Mirror.ChatGpt.Models.ChatGpt;
 using Dapper;
+using System.Threading;
+using Telegram.Bot.Types.ReplyMarkups;
+using Telegram.Bot;
 
 namespace XpAndRepBot
 {
@@ -29,8 +32,7 @@ namespace XpAndRepBot
         public static async Task<string> Me(long idUser)
         {
             using var db = new InfoContext();
-            string conString = ConStringDbLexicon; // Replace with your connection string
-            using var connection = new SqlConnection(conString);
+            using var connection = new SqlConnection(ConStringDbLexicon);
             await connection.OpenAsync();
             var user = db.TableUsers.First(x => x.Id == idUser);
             using var command = new SqlCommand($"SELECT COUNT(*) FROM dbo.[{user.Id}]", connection);
@@ -246,7 +248,7 @@ namespace XpAndRepBot
 
         public static string RepUp(Update update, InfoContext db, string mes)
         {
-            mes = Regex.Replace(mes, @"[^\w\d\s+]", "").ToLower();
+            mes = Regex.Replace(mes, @"[^\w\d\s+👍👍🏼👍🏽👍🏾👍🏿]", "").ToLower();
             if (update.Message.ReplyToMessage.From.Id != update.Message.From.Id)
             {
                 var list = mes.Split(" ");
@@ -429,6 +431,60 @@ namespace XpAndRepBot
                 res += $"{i + 1} || {usersWithNfc[i].Name}: {ts.Days} d, {ts.Hours} h, {ts.Minutes} m.\n";
             }
             return res;
+        }
+
+        public static async Task<InlineKeyboardMarkup> VoteBan(InlineKeyboardMarkup inlineKeyboard, CallbackQuery callbackQuery, string option, ChatId chatId, ITelegramBotClient botClient, CancellationToken cancellationToken, long userId)
+        {
+            string pattern = @"\d+";
+            Match match = Regex.Match(option, pattern);
+            var count = int.Parse(match.Value);
+            inlineKeyboard = callbackQuery.Message.ReplyMarkup;
+            if (option[0] == 'y')
+            {
+                if (!option.Contains(callbackQuery.From.Id.ToString()) && !inlineKeyboard.InlineKeyboard.Last().Last().CallbackData.Contains(callbackQuery.From.Id.ToString()))
+                {
+                    await botClient.SendTextMessageAsync(chatId: chatId, replyToMessageId: callbackQuery.Message.MessageId, text: $"{callbackQuery.From.FirstName} {callbackQuery.From.LastName} проголосовал за", cancellationToken: cancellationToken);
+                    Regex regex = new(pattern);
+                    count++;
+                    option = regex.Replace(option, count.ToString(), 1);
+                    option += $"_{callbackQuery.From.Id}";
+                    var mes = $"Да ✅ - {count}";
+                    inlineKeyboard.InlineKeyboard.First().First().Text = mes;
+                    inlineKeyboard.InlineKeyboard.First().First().CallbackData = option;
+                    match = Regex.Match(inlineKeyboard.InlineKeyboard.Last().Last().Text, pattern);
+                    var count2 = int.Parse(match.Value);
+                    if (count >= 5 && count2 < count)
+                    {
+                        var db = new InfoContext();
+                        var user = db.TableUsers.First(x => x.Id == userId);
+                        await botClient.BanChatMemberAsync(chatId: chatId, userId: userId, cancellationToken: cancellationToken);
+                        inlineKeyboard = null;
+                        await botClient.SendTextMessageAsync(chatId: chatId, replyToMessageId: callbackQuery.Message.MessageId, text: $"{user.Name} забанен", cancellationToken: cancellationToken);
+                    }
+                    else if (count2 >= 5 && count2 >= count)
+                    {
+                        inlineKeyboard = null;
+                        var db = new InfoContext();
+                        var user = db.TableUsers.First(x => x.Id == userId);
+                        await botClient.SendTextMessageAsync(chatId: chatId, replyToMessageId: callbackQuery.Message.MessageId, text: $"{user.Name} не забанен", cancellationToken: cancellationToken);
+                    }
+                }
+            }
+            else
+            {
+                if (!option.Contains(callbackQuery.From.Id.ToString()) && !inlineKeyboard.InlineKeyboard.First().First().CallbackData.Contains(callbackQuery.From.Id.ToString()))
+                {
+                    await botClient.SendTextMessageAsync(chatId: chatId, replyToMessageId: callbackQuery.Message.MessageId, text: $"{callbackQuery.From.FirstName} {callbackQuery.From.LastName} проголосовал против", cancellationToken: cancellationToken);
+                    Regex regex = new(pattern);
+                    count++;
+                    option = regex.Replace(option, count.ToString(), 1);
+                    option += $"_{callbackQuery.From.Id}";
+                    var mes = $"Нет ❌ - {count}";
+                    inlineKeyboard.InlineKeyboard.Last().Last().Text = mes;
+                    inlineKeyboard.InlineKeyboard.Last().Last().CallbackData = option;
+                }
+            }
+            return inlineKeyboard;
         }
     }
 }

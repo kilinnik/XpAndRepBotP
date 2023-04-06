@@ -74,35 +74,33 @@ namespace XpAndRepBot
 
         public static async Task CreateAndFillTable(Users user, string mes)
         {
-            using (SqlConnection connection = new SqlConnection(ConStringDbUsers))
-            {
-                await connection.OpenAsync();
-                SqlCommand createTableCommand = new SqlCommand($"IF OBJECT_ID('{user.Id}', 'U') IS NULL create table \"{user.Id}\" (Word varchar(200) primary key, Count int default 0)", connection);
-                await createTableCommand.ExecuteNonQueryAsync();
+            using SqlConnection connection = new(ConStringDbLexicon);
+            await connection.OpenAsync();
+            SqlCommand createTableCommand = new($"IF OBJECT_ID('{user.Id}', 'U') IS NULL create table \"{user.Id}\" (Word varchar(200) primary key, Count int default 0)", connection);
+            await createTableCommand.ExecuteNonQueryAsync();
 
-                var listWords = mes.Split(new string[] { " ", "\r\n", "\n" }, StringSplitOptions.None);
-                List<string> validWords = new();
-                for (int i = 0; i < listWords.Length; i++)
+            var listWords = mes.Split(new string[] { " ", "\r\n", "\n" }, StringSplitOptions.None);
+            List<string> validWords = new();
+            for (int i = 0; i < listWords.Length; i++)
+            {
+                string cleanedWord = Regex.Replace(listWords[i], @"[^\w\d\s]", "");
+                if (string.IsNullOrWhiteSpace(cleanedWord)) continue;
+                cleanedWord = cleanedWord.ToLower();
+                validWords.Add(cleanedWord);
+            }
+            foreach (var word in validWords)
+            {
+                try
                 {
-                    string cleanedWord = Regex.Replace(listWords[i], @"[^\w\d\s]", "");
-                    if (string.IsNullOrWhiteSpace(cleanedWord)) continue;
-                    cleanedWord = cleanedWord.ToLower();
-                    validWords.Add(cleanedWord);
+                    SqlCommand insertCommand = new($"insert into dbo.\"{user.Id}\" (Word, Count) values (@Word, 1)", connection);
+                    insertCommand.Parameters.AddWithValue("@Word", word);
+                    await insertCommand.ExecuteNonQueryAsync();
                 }
-                foreach (var word in validWords)
+                catch
                 {
-                    try
-                    {
-                        SqlCommand insertCommand = new SqlCommand($"insert into dbo.\"{user.Id}\" (Word, Count) values (@Word, 1)", connection);
-                        insertCommand.Parameters.AddWithValue("@Word", word);
-                        await insertCommand.ExecuteNonQueryAsync();
-                    }
-                    catch
-                    {
-                        SqlCommand updateCommand = new SqlCommand($"update dbo.\"{user.Id}\" set [Count] = [Count] + 1 where [Word] = @Word", connection);
-                        updateCommand.Parameters.AddWithValue("@Word", word);
-                        await updateCommand.ExecuteNonQueryAsync();
-                    }
+                    SqlCommand updateCommand = new($"update dbo.\"{user.Id}\" set [Count] = [Count] + 1 where [Word] = @Word", connection);
+                    updateCommand.Parameters.AddWithValue("@Word", word);
+                    await updateCommand.ExecuteNonQueryAsync();
                 }
             }
         }

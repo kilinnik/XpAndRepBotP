@@ -22,28 +22,17 @@ namespace XpAndRepBot
         static readonly Dictionary<string, ICommand> _commands = new()
         {
             {"/m", new MeCommand() },
-            //{"/m@XpAndRepBot", new MeCommand() },
             {"/tl", new TopLvlCommand() },
-            //{"/tl@XpAndRepBot", new TopLvlCommand() },
             {"/tr", new TopReputationCommand() },
-            //{"/tr@XpAndRepBot", new TopReputationCommand() },
             {"/r", new RulesCommand() },
-            //{"/r@XpAndRepBot", new RulesCommand() },
             {"/h", new HelpCommand() },
-            //{"/h@XpAndRepBot", new HelpCommand() },
-            //{"/help@XpAndRepBot", new HelpCommand() },
             {"/help", new HelpCommand() },
             {"/mr", new MessagesReputationCommand() },
-            //{"/mr@XpAndRepBot", new MessagesReputationCommand() },
             {"/g", new GamesCommand() },
-            //{"/g@XpAndRepBot", new GamesCommand() },
             {"/tw", new TopWordsCommand() },
-            //{"/tw@XpAndRepBot", new TopWordsCommand() },
             {"/porno", new RoflCommand() },
             {"/hc", new HelpChatGPTCommand() },
-            //{"/hc@XpAndRepBot", new HelpChatGPTCommand() },
             {"/i", new ImageCommand() },
-            //{"/i@XpAndRepBot", new ImageCommand() },
             {"/warn", new WarnCommand() },
             {"/unwarn", new UnwarnCommand() },
             {"/unw", new UnwarnCommand() },
@@ -51,9 +40,11 @@ namespace XpAndRepBot
             {"/tge", new TgEmpressCommand() },
             {"/role", new RoleCommand() },
             {"/roles", new RolesCommand() },
-            {"/nfc", new NfcCommand() },
+            {"/nfc", new NoFuckChallengeCommand() },
             {"/unr", new UnRoleCommand() },
-             {"/b", new BalabobaCommand() }
+            {"/b", new BalabobaCommand() },
+            {"/vb", new VoteBanCommand() },
+            {"/ban", new BanCommand() }
         };
 
         public async Task HandleUpdateAsync(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken)
@@ -62,7 +53,7 @@ namespace XpAndRepBot
             //inline buttons
             if (update.Type == UpdateType.CallbackQuery)
             {
-                await HandleCallbackQuery(botClient, update.CallbackQuery);
+                await HandleCallbackQuery(botClient, update.CallbackQuery, cancellationToken);
             }
             using var db = new InfoContext();
             if (update.Message?.Chat?.Id is long id && (id == IgruhaChatID || id == MyChatID || id == MID || id == IID) && !update.Message.From.IsBot)
@@ -71,12 +62,39 @@ namespace XpAndRepBot
                 var user = db.TableUsers.FirstOrDefault(x => x.Id == idUser);
                 if (user == null)
                 {
-                    user = new Users(idUser, update.Message.From.FirstName + " " + update.Message.From.LastName, 0, 0, 0);
+                    string name = update.Message.From.FirstName;
+                    if (!string.IsNullOrEmpty(update.Message.From.LastName))
+                    {
+                        name += " " + update.Message.From.LastName;
+                    }
+                    user = new Users(idUser, name, 0, 0, 0);
                     db.TableUsers.Add(user);
                 }
-                if (user.Name == "0") user.Name = update.Message.From.FirstName + " " + update.Message.From.LastName;
+                if (user.Name == "0")
+                {
+                    user.Name = update.Message.From.FirstName;
+                    if (!string.IsNullOrEmpty(update.Message.From.LastName))
+                    {
+                        user.Name += " " + update.Message.From.LastName;
+                    }
+                }
                 user.TimeLastMes = update.Message.Date.AddHours(3);
                 db.SaveChanges();
+                if (update.Message?.NewChatMembers != null)
+                {
+                    var newMembers = update.Message.NewChatMembers;
+                    foreach (var member in newMembers)
+                    {
+                        try
+                        {
+                            await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, replyToMessageId: update.Message.MessageId, text: $"Привет, {user.Name}.{Greeting}", cancellationToken: cancellationToken);
+                        }
+                        catch
+                        {
+                            await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, text: $"Привет, {user.Name}.{Greeting}", cancellationToken: cancellationToken);
+                        }
+                    }
+                }
                 //var ids = db.TableUsers.Select(x => x.Id).ToList();
                 //for (int i = 0; i < db.TableUsers.Count(); i++)
                 //{
@@ -151,10 +169,21 @@ namespace XpAndRepBot
                         bool containsWord = messageWords.Any(w => words.Contains(w.ToLower()));
                         if (containsWord) botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, text: ChatHandlers.Nfc(user, db), cancellationToken: cancellationToken);
                     }
+                    if (user.LastMessage == mes)
+                    {
+                        user.CountRepeatMessage++;
+                    }
+                    else
+                    {
+                        user.LastMessage = mes;
+                        user.CountRepeatMessage = 1;
+                    }
+                    if (user.CountRepeatMessage > 3) botClient.DeleteMessageAsync(update.Message.Chat.Id, update.Message.MessageId, cancellationToken);
+                    db.SaveChanges();
                 }
             }
         }
-        public static async Task HandleCallbackQuery(ITelegramBotClient botClient, CallbackQuery callbackQuery)
+        public static async Task HandleCallbackQuery(ITelegramBotClient botClient, CallbackQuery callbackQuery, CancellationToken cancellationToken)
         {
             var inlineKeyboard = new InlineKeyboardMarkup(new[]
             {
@@ -203,6 +232,7 @@ namespace XpAndRepBot
                     InlineKeyboardButton.WithCallbackData("Вперёд", "nextl"),
                 }
             });
+            var userId = callbackQuery.Message.ReplyToMessage.From.Id;
             var option = callbackQuery.Data;
             var messageId = callbackQuery.Message.MessageId;
             var chatId = callbackQuery.Message.Chat.Id;
@@ -270,8 +300,12 @@ namespace XpAndRepBot
                         newText = await ResponseHandlers.TopLexicon(int.Parse(match.Value) + 49);
                         inlineKeyboard = inlineKeyboardL;
                         break;
+                    default:
+                        inlineKeyboard = await ResponseHandlers.VoteBan(inlineKeyboard, callbackQuery, option, chatId, botClient, cancellationToken, userId);
+                        newText = callbackQuery.Message.Text;
+                        break;
                 }
-                await botClient.EditMessageTextAsync(chatId: chatId, replyMarkup: inlineKeyboard, messageId: messageId, text: newText);
+                await botClient.EditMessageTextAsync(chatId: chatId, replyMarkup: inlineKeyboard, messageId: messageId, text: newText, cancellationToken: cancellationToken);
             }
             catch { }
         }
