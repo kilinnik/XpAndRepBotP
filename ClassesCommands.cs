@@ -10,8 +10,7 @@ using System.Linq;
 using static XpAndRepBot.Consts;
 using Telegram.Bot.Types.Enums;
 using System;
-using static OpenAI.GPT3.ObjectModels.SharedModels.IOpenAiModels;
-using System.Runtime.Intrinsics.X86;
+using StableDiffusionClient;
 
 namespace XpAndRepBot
 {
@@ -241,7 +240,7 @@ namespace XpAndRepBot
         }
     }
 
-    public class ImageCommand : ICommand
+    public class ImageDalleCommand : ICommand
     {
         public async Task ExecuteAsync(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken)
         {
@@ -457,7 +456,7 @@ namespace XpAndRepBot
                 {
                     await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, replyToMessageId: update.Message.MessageId, text: "Кого баним? Ответьте на сообщение пользователя. Воутбан можно начинать строго по правилам /r", cancellationToken: cancellationToken);
                 }
-                catch 
+                catch
                 {
                     await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, text: "Кого баним? Ответьте на сообщение пользователя. Воутбан можно начинать строго по правилам /r", cancellationToken: cancellationToken);
                 }
@@ -478,6 +477,109 @@ namespace XpAndRepBot
                     await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, replyToMessageId: update.Message.ReplyToMessage.MessageId, text: $"Пользователь забанен", cancellationToken: cancellationToken);
                 }
                 catch { }
+            }
+        }
+    }
+
+    public class StatusCommand : ICommand
+    {
+        public async Task ExecuteAsync(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken)
+        {
+            using var db = new InfoContext();
+            string status = "";
+            if (update?.Message?.ReplyToMessage != null && !update.Message.ReplyToMessage.From.IsBot && update.Message.ReplyToMessage.From.Id != 777000)
+            {
+                var user1 = db.TableUsers.First(x => x.Id == update.Message.ReplyToMessage.From.Id);
+                if (user1.Mariage == 0) status = $"{user1.Name} не состоит в браке";
+                else
+                {
+                    var user2 = db.TableUsers.First(x => x.Id == user1.Mariage);
+                    TimeSpan ts = DateTime.Now - user2.DateMariage;
+                    status = $"🤵🏿 🤵🏿 {user1.Name} состоит в браке с {user2.Name} {ts.Days} d, {ts.Hours} h, {ts.Minutes} m. Дата регистрации {user1.DateMariage:yy/MM/dd HH:mm:ss}";
+                }
+            }
+            else
+            {
+                var user1 = db.TableUsers.First(x => x.Id == update.Message.From.Id);
+                if (user1.Mariage == 0) status = $"Вы не состоите в браке";
+                else
+                {
+                    var user2 = db.TableUsers.First(x => x.Id == user1.Mariage);
+                    TimeSpan ts = DateTime.Now - user2.DateMariage;
+                    status = $"🤵🏿 🤵🏿 {user1.Name} состоит в браке с {user2.Name} {ts.Days} d, {ts.Hours} h, {ts.Minutes} m. Дата регистрации {user1.DateMariage:yy/MM/dd HH:mm:ss}";
+                }
+            }
+            try
+            {
+                await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, replyToMessageId: update.Message.MessageId, text: status, cancellationToken: cancellationToken);
+            }
+            catch
+            {
+                await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, text: status, cancellationToken: cancellationToken);
+            }
+        }
+    }
+
+    public class MariageCommand : ICommand
+    {
+        public async Task ExecuteAsync(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken)
+        {
+            if (update?.Message?.ReplyToMessage != null && !update.Message.ReplyToMessage.From.IsBot && update.Message.ReplyToMessage.From.Id != 777000)
+            {
+                using var db = new InfoContext();
+                var user1 = db.TableUsers.First(x => x.Id == update.Message.From.Id);
+                var user2 = db.TableUsers.First(x => x.Id == update.Message.ReplyToMessage.From.Id);
+                if (user1.Mariage != 0) await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, text: "Вы уже в браке", cancellationToken: cancellationToken);
+                else if (user2.Mariage != 0) await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, replyToMessageId: update.Message.MessageId, text: $"{user2.Name} уже в браке", cancellationToken: cancellationToken);
+                else
+                {
+                    var inlineKeyboard = new InlineKeyboardMarkup(new[]
+                    {
+                        new[]
+                        {
+                            InlineKeyboardButton.WithCallbackData("Нет", $"mny{user1.Id}"),
+                            InlineKeyboardButton.WithCallbackData("Да", $"my{user1.Id}"),
+                        }
+                    });
+                    await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, replyMarkup: inlineKeyboard, replyToMessageId: update.Message.ReplyToMessage.MessageId, text: $"💖 {user1.Name} делает вам предложение руки и сердца. Согласны ли вы вступить в брак с {user1.Name}?", cancellationToken: cancellationToken);
+                }
+            }
+            else await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, replyToMessageId: update.Message.MessageId, text: "Ответьте на сообщение того, с кем хотите заключить брак", cancellationToken: cancellationToken);
+        }
+    }
+
+    public class DivorceCommand : ICommand
+    {
+        public async Task ExecuteAsync(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken)
+        {
+
+            using var db = new InfoContext();
+            var user1 = db.TableUsers.First(x => x.Id == update.Message.From.Id);
+            if (user1.Mariage == 0) await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, text: "Вы не состоите в браке", cancellationToken: cancellationToken);
+            else
+            {
+                var user2 = db.TableUsers.First(x => x.Id == user1.Mariage);
+                user1.Mariage = 0;
+                user2.Mariage = 0;
+                TimeSpan ts = DateTime.Now - user2.DateMariage;
+                db.SaveChanges();
+                string mes = $"💔 {user2.Name} сожалеем, но {user1.Name} подал на развод. Ваш брак был зарегистрирован {user1.DateMariage:yy/MM/dd HH:mm:ss} и просуществовал {ts.Days} d, {ts.Hours} h, {ts.Minutes} m";
+                await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, replyToMessageId: update.Message.MessageId, text: mes, cancellationToken: cancellationToken);
+            }
+        }
+    }
+
+    public class MariagesCommand : ICommand
+    {
+        public async Task ExecuteAsync(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken)
+        {
+            try
+            {
+                await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, replyToMessageId: update.Message.MessageId, text: ResponseHandlers.Mariages(), cancellationToken: cancellationToken);
+            }
+            catch
+            {
+                await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, text: ResponseHandlers.Mariages(), cancellationToken: cancellationToken);
             }
         }
     }

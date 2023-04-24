@@ -14,6 +14,7 @@ using Telegram.Bot.Types.ReplyMarkups;
 using static XpAndRepBot.Consts;
 using System.Data;
 using System.IO;
+using static OpenAI.GPT3.ObjectModels.SharedModels.IOpenAiModels;
 
 namespace XpAndRepBot
 {
@@ -32,7 +33,7 @@ namespace XpAndRepBot
             {"/tw", new TopWordsCommand() },
             {"/porno", new RoflCommand() },
             {"/hc", new HelpChatGPTCommand() },
-            {"/i", new ImageCommand() },
+            {"/im", new ImageDalleCommand() },
             {"/warn", new WarnCommand() },
             {"/unwarn", new UnwarnCommand() },
             {"/unw", new UnwarnCommand() },
@@ -44,7 +45,11 @@ namespace XpAndRepBot
             {"/unr", new UnRoleCommand() },
             {"/b", new BalabobaCommand() },
             {"/vb", new VoteBanCommand() },
-            {"/ban", new BanCommand() }
+            {"/ban", new BanCommand() },
+            {"брак", new MariageCommand() },
+            {"браки", new MariagesCommand() },
+            {"статус", new StatusCommand() },
+            {"развод", new DivorceCommand() }
         };
 
         public async Task HandleUpdateAsync(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken)
@@ -147,12 +152,13 @@ namespace XpAndRepBot
                     //повышение уровня
                     if (update.Message?.Chat?.Id != MID) await ChatHandlers.LvlUp(botClient, update, db, user, cancellationToken);
                     //команды
-                    if (_commands.ContainsKey(match.Value))
+                    if (_commands.ContainsKey(match.Value.ToLower()))
                     {
-                        var command = _commands[match.Value];
+                        var command = _commands[match.Value.ToLower()];
                         command.ExecuteAsync(botClient, update, cancellationToken);
                     }
-                    var users = db.TableUsers.Where(x => x.Roles.StartsWith(mes.Substring(1)) || x.Roles.Contains(", " + mes.Substring(1))).ToList();
+                    List<Users> users = new();
+                    if (mes.Length < 100) users = db.TableUsers.Where(x => x.Roles.StartsWith(mes.Substring(1)) || x.Roles.Contains(", " + mes.Substring(1))).ToList();
                     if (mes[0] == '@' && users.Count > 0) botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, text: $"{user.Name} призывает {ChatHandlers.Mention(users)}", parseMode: ParseMode.Html, cancellationToken: cancellationToken);
                     List<string> words = new();
                     if (user.Nfc == true)
@@ -232,7 +238,6 @@ namespace XpAndRepBot
                     InlineKeyboardButton.WithCallbackData("Вперёд", "nextl"),
                 }
             });
-            var userId = callbackQuery.Message.ReplyToMessage.From.Id;
             var option = callbackQuery.Data;
             var messageId = callbackQuery.Message.MessageId;
             var chatId = callbackQuery.Message.Chat.Id;
@@ -301,7 +306,15 @@ namespace XpAndRepBot
                         inlineKeyboard = inlineKeyboardL;
                         break;
                     default:
-                        inlineKeyboard = await ResponseHandlers.VoteBan(inlineKeyboard, callbackQuery, option, chatId, botClient, cancellationToken, userId);
+                        var userId = callbackQuery.Message.ReplyToMessage.From.Id;
+                        if (option[0] == 'm')
+                        {
+                            inlineKeyboard = await ResponseHandlers.AcceptMariage(option, callbackQuery, botClient, chatId, userId, cancellationToken);
+                        }
+                        else
+                        {
+                            inlineKeyboard = await ResponseHandlers.VoteBan(inlineKeyboard, callbackQuery, option, chatId, botClient, cancellationToken, userId);
+                        }
                         newText = callbackQuery.Message.Text;
                         break;
                 }

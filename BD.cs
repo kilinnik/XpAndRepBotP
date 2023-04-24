@@ -31,20 +31,25 @@ namespace XpAndRepBot
         public DateTime TimeLastMes { get; set; }
         public string LastMessage { get; set; }
         public int CountRepeatMessage { get; set; }
-        public Users (long id, string name, int lvl, int curXp, int rep)
+        public long Mariage { get; set; }
+        public DateTime DateMariage { get; set; }
+
+        public Users(long id, string name, int lvl, int curXp, int rep)
         {
-            Id = id; 
-            Name = name;  
+            Id = id;
+            Name = name;
             Lvl = lvl;
-            CurXp = curXp; 
+            CurXp = curXp;
             Rep = rep; Warns = 0;
             LastTime = DateTime.ParseExact("1900-01-01 00:00:00.000", "yyyy-MM-dd HH:mm:ss.fff", System.Globalization.CultureInfo.InvariantCulture);
-            Nfc = false; 
+            Nfc = false;
             StartNfc = DateTime.ParseExact("1900-01-01 00:00:00.000", "yyyy-MM-dd HH:mm:ss.fff", System.Globalization.CultureInfo.InvariantCulture);
             BestTime = 0;
             TimeLastMes = DateTime.ParseExact("1900-01-01 00:00:00.000", "yyyy-MM-dd HH:mm:ss.fff", System.Globalization.CultureInfo.InvariantCulture);
             CountRepeatMessage = 1;
             LastMessage = "";
+            Mariage = 0;
+            DateMariage = DateTime.ParseExact("1900-01-01 00:00:00.000", "yyyy-MM-dd HH:mm:ss.fff", System.Globalization.CultureInfo.InvariantCulture);
         }
     }
 

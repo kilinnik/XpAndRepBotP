@@ -1,9 +1,11 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Data.SqlClient;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
+using static XpAndRepBot.Consts;
 
 namespace XpAndRepBot
 {
@@ -23,39 +25,22 @@ namespace XpAndRepBot
 
         public static async Task<int> PlaceLexicon(Users user)
         {
-            using SqlConnection connection = new(Consts.ConStringDbLexicon);
+            using SqlConnection connection = new(ConStringDbLexicon);
             await connection.OpenAsync();
-            SqlCommand command = new("SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES", connection);
-            var tablesName = new List<string>();
+            SqlCommand command = new($"SELECT  RowNumber from (SELECT ROW_NUMBER() OVER (ORDER BY SUM([Count]) DESC) AS RowNumber, UserID, COUNT(*) AS UserCount FROM dbo.TableUsersLexicons GROUP BY UserID) AS T WHERE UserID = {user.Id}", connection);
             SqlDataReader reader = await command.ExecuteReaderAsync();
+            int position = 1;
+            var str = user.Id.ToString();
             while (await reader.ReadAsync())
             {
-                tablesName.Add(reader.GetString(0));
+                position = (int)reader.GetInt64(0);
             }
             reader.Close();
-
-            var query = new StringBuilder($"SELECT '{tablesName[0]}' AS TableName, COUNT(*) AS CountRow FROM [dbo].[{tablesName[0]}]");
-            for (int i = 1; i < tablesName.Count; i++)
-            {
-                query.Append($" UNION ALL SELECT '{tablesName[i]}' AS TableName, COUNT(*) AS CountRow FROM [dbo].[{tablesName[i]}]");
-            }
-
-            command.CommandText = query.ToString();
-            reader = await command.ExecuteReaderAsync();
-
-            var lexicons = new List<Lexicon>();
-            while (await reader.ReadAsync())
-            {
-                lexicons.Add(new Lexicon { TableName = reader.GetString(0), CountRow = reader.GetInt32(1) });
-            }
-            reader.Close();
-
-            return lexicons.OrderByDescending(x => x.CountRow).ToList().IndexOf(lexicons.First(x => x.TableName == user.Id.ToString())) + 1;
+            return position;
         }
 
         public static int Genlvl(int x)
-        {
-            int[] xplvl = new int[] { 0, 100, 235, 505, 810, 1250, 1725, 2335, 2980, 3760, 4575, 5525, 6510, 7630, 8785, 10075, 11400, 12860, 14355, 15985, 17650, 19450, 21285, 23255, 25260, 27400, 29575, 31885, 34230, 36710, 39225, 41875, 44560, 47380, 50235, 53225, 56250, 59410, 62605, 65935, 69300 };
+        {          
             return xplvl[x];
         }
     }

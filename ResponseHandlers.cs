@@ -24,6 +24,10 @@ using Dapper;
 using System.Threading;
 using Telegram.Bot.Types.ReplyMarkups;
 using Telegram.Bot;
+using SixLabors.ImageSharp;
+using static Microsoft.EntityFrameworkCore.DbLoggerCategory.Database;
+using static OpenAI.GPT3.ObjectModels.SharedModels.IOpenAiModels;
+using System.Reflection.PortableExecutable;
 
 namespace XpAndRepBot
 {
@@ -32,25 +36,26 @@ namespace XpAndRepBot
         public static async Task<string> Me(long idUser)
         {
             using var db = new InfoContext();
+            var user = db.TableUsers.First(x => x.Id == idUser);
+            var result = new StringBuilder($"👨‍❤️‍👨 Имя: {user.Name}\n🕰 Время последнего сообщения: {user.TimeLastMes:yy/MM/dd HH:mm:ss}\n⭐️ Lvl: {user.Lvl}({user.CurXp}/{Сalculation.Genlvl(user.Lvl + 1)})\n🎭 Роли: {user.Roles}\n🏆 Место в топе по уровню: {Сalculation.PlaceLvl(user.Id, db.TableUsers)}\n😇 Rep: {user.Rep}\n🥇 Место в топе по репутации: {Сalculation.PlaceRep(user.Id, db.TableUsers)}\n🎖 Место в топе по лексикону: {await Сalculation.PlaceLexicon(user)}\n🤬 Кол-во варнов: {user.Warns}/3\n🗓 Дата последнего варна/снятия варна: {user.LastTime:yyyy-MM-dd}\n");
             using var connection = new SqlConnection(ConStringDbLexicon);
             await connection.OpenAsync();
-            var user = db.TableUsers.First(x => x.Id == idUser);
-            using var command = new SqlCommand($"SELECT COUNT(*) FROM dbo.[{user.Id}]", connection);
+            using var command = new SqlCommand($"SELECT COUNT(*) FROM dbo.TableUsersLexicons where [UserID] = {user.Id}", connection);
             int count = (int)await command.ExecuteScalarAsync();
-            using var command2 = new SqlCommand($"select top 10 * from dbo.[{user.Id}] order by [Count] desc", connection);
+            result.AppendLine($"🔤 Лексикон: {count} слов");
+            result.AppendLine("📖 Личный топ слов:");
+            using var command2 = new SqlCommand($"select top 10 * from dbo.TableUsersLexicons where [UserID] = {user.Id} order by [Count] desc", connection);
             using var reader = await command2.ExecuteReaderAsync();
             var words = new List<Words>();
             while (await reader.ReadAsync())
             {
                 var word = new Words
                 {
-                    Word = reader.GetString(0),
-                    Count = reader.GetInt32(1)
+                    Word = reader.GetString(1),
+                    Count = reader.GetInt32(2)
                 };
                 words.Add(word);
             }
-            var result = new StringBuilder($"👨‍❤️‍👨 Имя: {user.Name}\n🕰 Время последнего сообщения: {user.TimeLastMes:yy/MM/dd HH:mm:ss}\n⭐️ Lvl: {user.Lvl}({user.CurXp}/{Сalculation.Genlvl(user.Lvl + 1)})\n🎭 Роли: {user.Roles}\n🏆 Место в топе по уровню: {Сalculation.PlaceLvl(user.Id, db.TableUsers)}\n😇 Rep: {user.Rep}\n🥇 Место в топе по репутации: {Сalculation.PlaceRep(user.Id, db.TableUsers)}\n🔤 Лексикон: {count} слов\n🎖 Место в топе по лексикону: {await Сalculation.PlaceLexicon(user)}\n🤬 Кол-во варнов: {user.Warns}/3\n🗓 Дата последнего варна/снятия варна: {user.LastTime:yyyy-MM-dd}\n");
-            result.AppendLine("📖 Личный топ слов:");
             for (int i = 0; i < words.Count; i++)
             {
                 result.AppendLine($"{Keycaps[i]} {words[i].Word} || {words[i].Count}");
@@ -116,7 +121,6 @@ namespace XpAndRepBot
 
             var words = new List<Words>();
             int i = 0;
-            var query = $"SELECT * FROM [dbo].[{user.Id}] ORDER BY [Count] DESC OFFSET @Offset ROWS FETCH NEXT 10 ROWS ONLY";
             var offset = 10;
 
             if (match.Success)
@@ -126,12 +130,12 @@ namespace XpAndRepBot
             }
             else
             {
-                i = 11;              
+                i = 11;
             }
 
             using var connection = new SqlConnection(ConStringDbLexicon);
             var result = new StringBuilder();
-            var rows = await connection.QueryAsync<Words>(query, new { Offset = offset });
+            var rows = await connection.QueryAsync<Words>($"select * from dbo.TableUsersLexicons where [UserID] = {user.Id} ORDER BY [Count] DESC OFFSET @Offset ROWS FETCH NEXT 10 ROWS ONLY", new { Offset = offset });
             rows.ToList().ForEach((word) =>
             {
                 words.Add(word);
@@ -143,106 +147,32 @@ namespace XpAndRepBot
 
         public static async Task<string> TopWords(int number)
         {
-            var connectionString = ConStringDbLexicon;
-            var tables = new List<string>();
-            using (var connection = new SqlConnection(connectionString))
-            {
-                await connection.OpenAsync();
-                var cmd = new SqlCommand("SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES", connection)
-                {
-                    CommandTimeout = 0
-                };
-                using var reader = await cmd.ExecuteReaderAsync();
-                while (await reader.ReadAsync())
-                {
-                    tables.Add(reader.GetString(0));
-                }
-            }
-            var query = new StringBuilder($"select [Word], SUM([Count]) as [Count] from (select [Word],[Count] from [dbo].[{tables[0]}]");
-            for (int i = 1; i < tables.Count; i++)
-            {
-                query.Append($" union select [Word],[Count] from [dbo].[{tables[i]}]");
-            }
-            query.Append($") as a group by [Word] order by [Count] desc");
-
-            var words = new List<Words>();
-            using (var connection = new SqlConnection(connectionString))
-            {
-                await connection.OpenAsync();
-                var cmd = new SqlCommand(query.ToString(), connection)
-                {
-                    CommandTimeout = 0
-                };
-                using var reader = await cmd.ExecuteReaderAsync();
-                while (await reader.ReadAsync())
-                {
-                    words.Add(new Words
-                    {
-                        Word = reader.GetString(0),
-                        Count = reader.GetInt32(1)
-                    });
-                }
-            }
-
-            int k = number + 1;
+            using SqlConnection connection = new(ConStringDbLexicon);
+            await connection.OpenAsync();
+            SqlCommand command = new($"SELECT ROW_NUMBER() OVER (ORDER BY SUM([Count]) DESC) AS RowNumber, [Word], SUM([Count]) AS WordCount FROM dbo.TableUsersLexicons GROUP BY [Word] order by [WordCount] desc OFFSET {number} ROWS FETCH NEXT 50 ROWS ONLY", connection);
+            SqlDataReader reader = await command.ExecuteReaderAsync();
             var result = new StringBuilder("📖 Топ слов:\n");
-            foreach (var word in words.Skip(number).Take(50))
+            while (await reader.ReadAsync())
             {
-                result.AppendLine($"{k}. {word.Word} || {word.Count}");
-                k++;
+                result.AppendLine($"{reader.GetInt64(0)}. {reader.GetString(1)} || {reader.GetInt32(2)}");
             }
+            reader.Close();
             return result.ToString();
         }
 
         public static async Task<string> TopLexicon(int number)
         {
-            using var connection = new SqlConnection(ConStringDbLexicon);
+            using SqlConnection connection = new(ConStringDbLexicon);
             await connection.OpenAsync();
-
-            var tablesName = new List<string>();
-            using (var command = new SqlCommand("SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES", connection))
-            using (var reader = await command.ExecuteReaderAsync())
-            {
-                while (await reader.ReadAsync())
-                {
-                    tablesName.Add(reader.GetString(0));
-                }
-            }
-
-            var query = new StringBuilder($"SELECT '{tablesName[0]}' AS TableName, COUNT(*) AS CountRow FROM [dbo].[{tablesName[0]}]");
-            for (int i = 1; i < tablesName.Count; i++)
-            {
-                query.Append($" UNION ALL SELECT '{tablesName[i]}' AS TableName, COUNT(*) AS CountRow FROM [dbo].[{tablesName[i]}]");
-            }
-
-            var lexicons = new List<Lexicon>();
-            using (var command = new SqlCommand(query.ToString(), connection))
-            using (var reader = await command.ExecuteReaderAsync())
-            {
-                while (await reader.ReadAsync())
-                {
-                    lexicons.Add(new Lexicon
-                    {
-                        TableName = reader.GetString(0),
-                        CountRow = reader.GetInt32(1)
-                    });
-                }
-            }
-
-            var topLexicons = lexicons.OrderByDescending(b => b.CountRow).Skip(number).Take(50).ToList();
+            SqlCommand command = new($"SELECT ROW_NUMBER() OVER (ORDER BY SUM([Count]) DESC) AS RowNumber, UserID, COUNT(*) AS UserCount FROM dbo.TableUsersLexicons GROUP BY UserID ORDER BY RowNumber OFFSET {number} ROWS FETCH NEXT 50 ROWS ONLY", connection);
+            SqlDataReader reader = await command.ExecuteReaderAsync();
             var result = new StringBuilder("🎖 Топ по лексикону:\n");
-
             using var db = new InfoContext();
-            foreach (var lexicon in topLexicons)
+            while (await reader.ReadAsync())
             {
-                var user = db.TableUsers.FirstOrDefault(x => x.Id.ToString() == lexicon.TableName);
-                if (user != null)
-                {
-                    result.AppendLine($"{number + 1}. {user.Name} || {lexicon.CountRow}");
-                    number++;
-                }
+                result.AppendLine($"{reader.GetInt64(0)}. {db.TableUsers.FirstOrDefault(x => x.Id == reader.GetInt64(1)).Name} || {reader.GetInt32(2)}");
             }
-
+            reader.Close();
             return result.ToString();
         }
 
@@ -319,13 +249,13 @@ namespace XpAndRepBot
             //return answer.TrimStart('\n', '\r');
         }
 
-        public static async Task<InputOnlineFile> GenerateImage(IOpenAIService sdk, string promt)
+        public static async Task<InputOnlineFile> GenerateImage(IOpenAIService sdk, string prompt)
         {
             try
             {
                 var imageResult = await sdk.Image.CreateImage(new ImageCreateRequest
                 {
-                    Prompt = promt,
+                    Prompt = prompt,
                     N = 1,
                     Size = StaticValues.ImageStatics.Size.Size256,
                     ResponseFormat = StaticValues.ImageStatics.ResponseFormat.Url,
@@ -359,6 +289,7 @@ namespace XpAndRepBot
             }
             return null;
         }
+
         public static async Task<string> RequestBalaboba(string str)
         {
             var url = "https://yandex.ru/lab/api/yalm/text3";
@@ -482,6 +413,60 @@ namespace XpAndRepBot
                     var mes = $"Нет ❌ - {count}";
                     inlineKeyboard.InlineKeyboard.Last().Last().Text = mes;
                     inlineKeyboard.InlineKeyboard.Last().Last().CallbackData = option;
+                }
+            }
+            return inlineKeyboard;
+        }
+
+        public static string Mariages()
+        {
+            using var db = new InfoContext();
+            var users = db.TableUsers.Where(x => x.Mariage != 0).OrderBy(y => y.DateMariage).ToList();
+            StringBuilder sb = new();
+            sb.Append("💒 список браков: \n");
+            int number = 1;
+            for (int i = 0; i < users.Count; i++)
+            {
+                TimeSpan ts = DateTime.Now - users[i].DateMariage;
+                if (users[i].Id == users[i].Mariage)
+                {
+                    sb.AppendLine($"{number}. {users[i].Name} и {users[i].Name} c {users[i].DateMariage:yy/MM/dd HH:mm:ss} {ts.Days} d, {ts.Hours} h, {ts.Minutes} m");
+                    number++;
+                }
+                else if (users[i + 1].Id != users[i].Mariage && users[i].Id != users[i].Mariage)
+                {
+                    sb.AppendLine($"{number}. {users[i].Name} и {users[i - 1].Name} c {users[i].DateMariage:yy/MM/dd HH:mm:ss} {ts.Days} d, {ts.Hours} h, {ts.Minutes} m");
+                    number++;
+                }
+            }
+            return sb.ToString();
+        }
+
+        public static async Task<InlineKeyboardMarkup> AcceptMariage(string option, CallbackQuery callbackQuery, ITelegramBotClient botClient, long chatId, long userId, CancellationToken cancellationToken)
+        {
+            using var db = new InfoContext();
+            InlineKeyboardMarkup inlineKeyboard = callbackQuery.Message.ReplyMarkup;
+            string newText = callbackQuery.Message.Text;
+            var user2 = db.TableUsers.First(x => x.Id == userId);
+            if (callbackQuery.From.Id == userId && user2.Mariage == 0)
+            {
+                string pattern = @"\d+";
+                Match match = Regex.Match(option, pattern);
+                var id = long.Parse(match.Value);
+                var user1 = db.TableUsers.First(x => x.Id == id);
+                inlineKeyboard = null;
+                if (option[1] == 'y')
+                {
+                    user1.Mariage = user2.Id;
+                    user2.Mariage = user1.Id;
+                    user1.DateMariage = DateTime.Now;
+                    user2.DateMariage = user1.DateMariage;
+                    db.SaveChanges();
+                    await botClient.SendTextMessageAsync(chatId: chatId, text: $"👰🏿 👰🏿 {user2.Name} и {user1.Name} заключили брак", cancellationToken: cancellationToken);
+                }
+                else
+                {
+                    await botClient.SendTextMessageAsync(chatId: chatId, text: $"{user2.Name} отказался от брака c {user1.Name}", cancellationToken: cancellationToken);
                 }
             }
             return inlineKeyboard;

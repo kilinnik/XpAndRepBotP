@@ -58,27 +58,28 @@ namespace XpAndRepBot
 
         public static async Task Delete(ITelegramBotClient botClient, Update update, Users user, CancellationToken cancellationToken)
         {
-            if (update?.Message?.Animation != null && user.Lvl < 10) //удаление гифок
+            try
             {
-                await botClient.DeleteMessageAsync(update.Message.Chat.Id, update.Message.MessageId, cancellationToken);
+                if (update?.Message?.Animation != null && user.Lvl < 10) //удаление гифок
+                {
+                    await botClient.DeleteMessageAsync(update.Message.Chat.Id, update.Message.MessageId, cancellationToken);
+                }
+                if (update?.Message?.Sticker != null && user.Lvl < 15) //удаление стикеров
+                {
+                    await botClient.DeleteMessageAsync(update.Message.Chat.Id, update.Message.MessageId, cancellationToken);
+                }
+                if (update?.Message?.Poll != null && user.Lvl < 20) //удаление опросов
+                {
+                    await botClient.DeleteMessageAsync(update.Message.Chat.Id, update.Message.MessageId, cancellationToken);
+                }
             }
-            if (update?.Message?.Sticker != null && user.Lvl < 15) //удаление стикеров
-            {
-                await botClient.DeleteMessageAsync(update.Message.Chat.Id, update.Message.MessageId, cancellationToken);
-            }
-            if (update?.Message?.Poll != null && user.Lvl < 20) //удаление опросов
-            {
-                await botClient.DeleteMessageAsync(update.Message.Chat.Id, update.Message.MessageId, cancellationToken);
-            }
+            catch { }
         }
 
         public static async Task CreateAndFillTable(Users user, string mes)
         {
             using SqlConnection connection = new(ConStringDbLexicon);
             await connection.OpenAsync();
-            SqlCommand createTableCommand = new($"IF OBJECT_ID('{user.Id}', 'U') IS NULL create table \"{user.Id}\" (Word varchar(200) primary key, Count int default 0)", connection);
-            await createTableCommand.ExecuteNonQueryAsync();
-
             var listWords = mes.Split(new string[] { " ", "\r\n", "\n" }, StringSplitOptions.None);
             List<string> validWords = new();
             for (int i = 0; i < listWords.Length; i++)
@@ -90,17 +91,12 @@ namespace XpAndRepBot
             }
             foreach (var word in validWords)
             {
-                try
+                SqlCommand updateCommand = new($"update dbo.TableUsersLexicons set [Count] = [Count] + 1 where [Word] = '{word}' and [UserID] = {user.Id}", connection);
+                int rowsAffected = await updateCommand.ExecuteNonQueryAsync();
+                if (rowsAffected == 0)
                 {
-                    SqlCommand insertCommand = new($"insert into dbo.\"{user.Id}\" (Word, Count) values (@Word, 1)", connection);
-                    insertCommand.Parameters.AddWithValue("@Word", word);
+                    SqlCommand insertCommand = new($"insert into dbo.TableUsersLexicons (UserID, Word, Count) values ({user.Id}, '{word}', 1)", connection);
                     await insertCommand.ExecuteNonQueryAsync();
-                }
-                catch
-                {
-                    SqlCommand updateCommand = new($"update dbo.\"{user.Id}\" set [Count] = [Count] + 1 where [Word] = @Word", connection);
-                    updateCommand.Parameters.AddWithValue("@Word", word);
-                    await updateCommand.ExecuteNonQueryAsync();
                 }
             }
         }
