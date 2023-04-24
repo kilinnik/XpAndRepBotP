@@ -10,7 +10,6 @@ using System.Linq;
 using static XpAndRepBot.Consts;
 using Telegram.Bot.Types.Enums;
 using System;
-using StableDiffusionClient;
 
 namespace XpAndRepBot
 {
