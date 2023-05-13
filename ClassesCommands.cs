@@ -215,11 +215,11 @@ namespace XpAndRepBot
             var user = db.TableUsers.FirstOrDefault(x => x.Id == update.Message.From.Id);
             try
             {
-                await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, replyToMessageId: update.Message.MessageId, text: $"🖕 {user.Name} иди на хуй 🖕", cancellationToken: cancellationToken);
+                await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, replyToMessageId: update.Message.MessageId, text: $"🖕, {user.Name}, иди на хуй 🖕", cancellationToken: cancellationToken);
             }
             catch
             {
-                await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, text: $"🖕 {user.Name} иди на хуй 🖕", cancellationToken: cancellationToken);
+                await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, text: $"🖕, {user.Name}, иди на хуй 🖕", cancellationToken: cancellationToken);
             }
         }
     }
@@ -473,7 +473,8 @@ namespace XpAndRepBot
                 {
 
                     await botClient.BanChatMemberAsync(chatId: update.Message.Chat.Id, userId: update.Message.ReplyToMessage.From.Id, cancellationToken: cancellationToken);
-                    await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, replyToMessageId: update.Message.ReplyToMessage.MessageId, text: $"Пользователь забанен", cancellationToken: cancellationToken);
+                    await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, replyToMessageId: update.Message.ReplyToMessage.MessageId, text: $"{update.Message.ReplyToMessage.From.FirstName} забанен", cancellationToken: cancellationToken);
+                    await botClient.DeleteMessageAsync(update.Message.Chat.Id, update.Message.ReplyToMessage.MessageId, cancellationToken);
                 }
                 catch { }
             }
@@ -579,6 +580,41 @@ namespace XpAndRepBot
             catch
             {
                 await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, text: ResponseHandlers.Mariages(), cancellationToken: cancellationToken);
+            }
+        }
+    }
+
+    public class WordCommand : ICommand
+    {
+        public async Task ExecuteAsync(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken)
+        {
+            string mes = update.Message.Text;
+            if (mes == "/w") await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, text: "Вы не написали слово", cancellationToken: cancellationToken);
+            else
+            {
+                mes = mes.Replace("/w ", "");
+                if (update?.Message?.ReplyToMessage != null && !update.Message.ReplyToMessage.From.IsBot && update.Message.ReplyToMessage.From.Id != 777000)
+                {
+                    try
+                    {
+                        await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, replyToMessageId: update.Message.MessageId, text: await ResponseHandlers.PersonalWord(update.Message.ReplyToMessage.From.Id, mes), cancellationToken: cancellationToken);
+                    }
+                    catch
+                    {
+                        await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, text: await ResponseHandlers.PersonalWord(update.Message.ReplyToMessage.From.Id, mes), cancellationToken: cancellationToken);
+                    }
+                }
+                else
+                {
+                    try
+                    {
+                        await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, replyToMessageId: update.Message.MessageId, text: await ResponseHandlers.Word(mes), cancellationToken: cancellationToken);
+                    }
+                    catch
+                    {
+                        await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, text: await ResponseHandlers.Word(mes), cancellationToken: cancellationToken);
+                    }
+                }
             }
         }
     }

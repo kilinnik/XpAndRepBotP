@@ -46,6 +46,7 @@ namespace XpAndRepBot
             {"/b", new BalabobaCommand() },
             {"/vb", new VoteBanCommand() },
             {"/ban", new BanCommand() },
+            {"/w", new WordCommand() },
             {"брак", new MariageCommand() },
             {"браки", new MariagesCommand() },
             {"статус", new StatusCommand() },

@@ -25,9 +25,6 @@ using System.Threading;
 using Telegram.Bot.Types.ReplyMarkups;
 using Telegram.Bot;
 using SixLabors.ImageSharp;
-using static Microsoft.EntityFrameworkCore.DbLoggerCategory.Database;
-using static OpenAI.GPT3.ObjectModels.SharedModels.IOpenAiModels;
-using System.Reflection.PortableExecutable;
 
 namespace XpAndRepBot
 {
@@ -164,7 +161,7 @@ namespace XpAndRepBot
         {
             using SqlConnection connection = new(ConStringDbLexicon);
             await connection.OpenAsync();
-            SqlCommand command = new($"SELECT ROW_NUMBER() OVER (ORDER BY SUM([Count]) DESC) AS RowNumber, UserID, COUNT(*) AS UserCount FROM dbo.TableUsersLexicons GROUP BY UserID ORDER BY RowNumber OFFSET {number} ROWS FETCH NEXT 50 ROWS ONLY", connection);
+            SqlCommand command = new($"SELECT ROW_NUMBER() OVER (ORDER BY COUNT(*) DESC) AS RowNumber, UserID, COUNT(*) AS UserCount FROM dbo.TableUsersLexicons GROUP BY UserID ORDER BY UserCount desc OFFSET {number} ROWS FETCH NEXT 50 ROWS ONLY", connection);
             SqlDataReader reader = await command.ExecuteReaderAsync();
             var result = new StringBuilder("🎖 Топ по лексикону:\n");
             using var db = new InfoContext();
@@ -174,6 +171,39 @@ namespace XpAndRepBot
             }
             reader.Close();
             return result.ToString();
+        }
+        public static async Task<string> PersonalWord(long id, string word)
+        {
+            using var db = new InfoContext();
+            var user = db.TableUsers.First(x => x.Id == id);
+            using var connection = new SqlConnection(ConStringDbLexicon);
+            await connection.OpenAsync();
+            SqlCommand command = new($"select * from ( SELECT ROW_NUMBER() OVER (ORDER BY SUM([Count]) DESC) AS RowNumber, [Word], SUM([Count]) AS WordCount FROM dbo.TableUsersLexicons where [UserID] = {id} GROUP BY [Word]) as T where Word = '{word}'", connection);
+            SqlDataReader reader = await command.ExecuteReaderAsync();
+            var result = "";
+            while (await reader.ReadAsync())
+            {
+                result = $"✍🏿 {user.Name} употреблял слово {word} {reader.GetInt32(2)} раз. Оно занимает {reader.GetInt64(0)} место по частоте употребления";
+            }
+            reader.Close();
+            if (result == "") result = $"{user.Name} ни разу не употреблял слово {word}";
+            return result;
+        }
+
+        public static async Task<string> Word(string word)
+        {
+            using SqlConnection connection = new(ConStringDbLexicon);
+            await connection.OpenAsync();
+            SqlCommand command = new($"select * from ( SELECT ROW_NUMBER() OVER (ORDER BY SUM([Count]) DESC) AS RowNumber, [Word], SUM([Count]) AS WordCount FROM dbo.TableUsersLexicons GROUP BY [Word]) as T where Word = '{word}'", connection);
+            SqlDataReader reader = await command.ExecuteReaderAsync();
+            var result = "";
+            while (await reader.ReadAsync())
+            {
+                result= $"✍🏿 Слово {word} употреблялось {reader.GetInt32(2)} раз. Оно занимает {reader.GetInt64(0)} место по частоте употребления";
+            }
+            reader.Close();
+            if (result == "") result = "Слово ни разу не употреблялось";
+            return result;
         }
 
         public static string RepUp(Update update, InfoContext db, string mes)
@@ -194,22 +224,8 @@ namespace XpAndRepBot
             }
             return "";
         }
-
-        //public static async Task<string> RequestChatGPT(string prompt)
-        //{
-        //    var services = new ServiceCollection();
-        //    const string token = Token;
-        //    services.AddBingClient(new() { Token = token });
-        //    var app = services.BuildServiceProvider();
-        //    var service = app.GetRequiredService<BingClient>();
-        //    var chatCts = new CancellationTokenSource();
-        //    //Set timeout by CancellationTokenSource
-        //    chatCts.CancelAfter(TimeSpan.FromMinutes(5));
-        //    var res = await service.ChatAsync(new(prompt), chatCts.Token);
-        //    return res.Text;
-        //}
-
-        public static async Task<string> RequestChatGPT(string prompt)
+        
+        public static async Task<string> RequestChatGPT(int id, MessageEntry[] messages)
         {
             var services = new ServiceCollection();
             services.AddChatGptClient(new() { ApiKey = SSHKey });
@@ -217,36 +233,16 @@ namespace XpAndRepBot
             var service = app.GetRequiredService<ChatGptClient>();
             var res = await service.ChatAsync(new ChatCompletionRequest
             {
-                Model = "gpt-3.5-turbo", //model name,required. only gpt-3.5-turbo or gpt-3.5-turbo-0301 can be chosen now
-                Messages = new[] { new MessageEntry { Role = Roles.System, Content = prompt } }
+                Model = "gpt-3.5-turbo", //only gpt-3.5-turbo or gpt-3.5-turbo-0301 can be chosen now
+                Messages = messages 
             }, default);
-            return res.Choices[0].Message.Content;
-            //string apiKey = SSHKey;
-
-            //// Set the model for the request
-            //string model = "text-davinci-003";
-
-            //// Create the JSON object for the request body
-            //var jsonObject = new JObject { { "model", model }, { "prompt", prompt }, { "max_tokens", 2048 } };
-
-            //// Send the request to the OpenAI API
-            //using var client = new HttpClient();
-            //client.DefaultRequestHeaders.Add("Authorization", $"Bearer {apiKey}");
-
-            //var response = await client.PostAsync("https://api.openai.com/v1/completions", new StringContent(jsonObject.ToString(), Encoding.UTF8, "application/json"));
-
-            //// Read the response and extract the answer
-            //var json = await response.Content.ReadAsStringAsync();
-            //var result = JObject.Parse(json);
-            //string answer;
-            //try
-            //{
-            //    answer = result["choices"][0]["text"].ToString();
-            //}
-            //catch { answer = "Произошла ошибка. Попробуйте повторить вопрос."; }
-
-            //// Return the answer
-            //return answer.TrimStart('\n', '\r');
+            if (Program.Context.TryGetValue(id, out MessageEntry[] array))
+            {
+                int index = Array.IndexOf(array, null);
+                array[index] = new MessageEntry { Role = res.Choices[0].Message.Role, Content = res.Choices[0].Message.Content };
+                Program.Context[id] = array;
+            }
+            return res.Choices[0].Message.Content + "\n" + id.ToString();
         }
 
         public static async Task<InputOnlineFile> GenerateImage(IOpenAIService sdk, string prompt)
@@ -433,9 +429,9 @@ namespace XpAndRepBot
                     sb.AppendLine($"{number}. {users[i].Name} и {users[i].Name} c {users[i].DateMariage:yy/MM/dd HH:mm:ss} {ts.Days} d, {ts.Hours} h, {ts.Minutes} m");
                     number++;
                 }
-                else if (users[i + 1].Id != users[i].Mariage && users[i].Id != users[i].Mariage)
+                else if (i != users.Count - 1 && users[i + 1].Id == users[i].Mariage)
                 {
-                    sb.AppendLine($"{number}. {users[i].Name} и {users[i - 1].Name} c {users[i].DateMariage:yy/MM/dd HH:mm:ss} {ts.Days} d, {ts.Hours} h, {ts.Minutes} m");
+                    sb.AppendLine($"{number}. {users[i].Name} и {users[i + 1].Name} c {users[i].DateMariage:yy/MM/dd HH:mm:ss} {ts.Days} d, {ts.Hours} h, {ts.Minutes} m");
                     number++;
                 }
             }

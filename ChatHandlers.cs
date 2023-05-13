@@ -9,6 +9,7 @@ using Telegram.Bot.Types;
 using Microsoft.EntityFrameworkCore;
 using System.Data.SqlClient;
 using static XpAndRepBot.Consts;
+using Mirror.ChatGpt.Models.ChatGpt;
 
 namespace XpAndRepBot
 {
@@ -27,23 +28,60 @@ namespace XpAndRepBot
 
         public static async Task RequestChatGPT(ITelegramBotClient botClient, Update update, string mes, CancellationToken cancellationToken)
         {
+            if (mes.Contains("@XpAndRepBot") || (update.Message?.Chat?.Id == MID && update.Message.ReplyToMessage == null) || (update.Message?.Chat?.Id == IID && update.Message.ReplyToMessage == null))
+            {
+                Program.Context.Add(update.Message.MessageId, new MessageEntry[1000]);
+                Program.ListBranches.Add(new List<int>() { update.Message.MessageId });
+            }
             if (update?.Message?.ReplyToMessage?.From?.Id != 5759112130) mes = mes.Replace("@XpAndRepBot", "");
-            mes = mes.Replace("\"", "");
-            mes = mes.Replace("\n", " ");
+            //mes = mes.Replace("\"", "");
+            //mes = mes.Replace("\n", " ");
             if (mes.Any(x => char.IsLetter(x)) || mes.Any(x => char.IsNumber(x)) || mes.Any(x => char.IsPunctuation(x)))
             {
-                try
+                var id = update.Message.MessageId;
+                if (update.Message.ReplyToMessage != null)
+                {
+                    Regex regex = new(@"\b\d+\b$");
+                    Match match = regex.Match(update.Message.ReplyToMessage.Text);
+                    int number = 0;
+                    if (match.Success)
+                    {
+                        number = int.Parse(match.Value);
+                    }
+                    List<int> targetList = Program.ListBranches.Find(list => list.Contains(number));
+                    if (targetList != null)
+                    {
+                        targetList.Add(update.Message.MessageId);
+                    }
+                    if (targetList != null && targetList.Count > 0)
+                    {
+                        id = targetList[0];
+                    }
+                }
+                MessageEntry[] subArray = new MessageEntry[1];
+                if (Program.Context.TryGetValue(id, out MessageEntry[] array))
+                {
+                    int index = Array.IndexOf(array, null);
+                    array[index] = new MessageEntry { Role = Roles.User, Content = mes };
+                    Program.Context[id] = array;
+                    subArray = new ArraySegment<MessageEntry>(array, 0, index + 1).ToArray();
+
+                }
+                if (subArray[0] != null)
                 {
                     try
                     {
-                        await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, replyToMessageId: update.Message.MessageId, text: await ResponseHandlers.RequestChatGPT(mes), cancellationToken: cancellationToken);
+                        try
+                        {
+                            await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, replyToMessageId: update.Message.MessageId, text: await ResponseHandlers.RequestChatGPT(id, subArray), cancellationToken: cancellationToken);
+                        }
+                        catch
+                        {
+                            await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, text: await ResponseHandlers.RequestChatGPT(id, subArray), cancellationToken: cancellationToken);
+                        }
                     }
-                    catch
-                    {
-                        await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, text: await ResponseHandlers.RequestChatGPT(mes), cancellationToken: cancellationToken);
-                    }
+                    catch { await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, text: "Произошла ошибка. Попробуйте повторить вопрос. Чтобы начать новую ветку, упомяните бота. Чтобы продолжить ветку, ответьте на сообщение от бота", cancellationToken: cancellationToken); }
                 }
-                catch { await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, text: "Произошла ошибка. Попробуйте повторить вопрос", cancellationToken: cancellationToken); }
             }
         }
 
@@ -66,7 +104,12 @@ namespace XpAndRepBot
                 }
                 if (update?.Message?.Sticker != null && user.Lvl < 15) //удаление стикеров
                 {
-                    await botClient.DeleteMessageAsync(update.Message.Chat.Id, update.Message.MessageId, cancellationToken);
+                    var sticker = update.Message.Sticker;
+                    var set = await botClient.GetStickerSetAsync(sticker.SetName, cancellationToken: cancellationToken);
+                    if (set.Name != "UnoWarStickers")
+                    {
+                        await botClient.DeleteMessageAsync(update.Message.Chat.Id, update.Message.MessageId, cancellationToken);
+                    }
                 }
                 if (update?.Message?.Poll != null && user.Lvl < 20) //удаление опросов
                 {
