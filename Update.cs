@@ -86,20 +86,10 @@ namespace XpAndRepBot
                 }
                 user.TimeLastMes = update.Message.Date.AddHours(3);
                 db.SaveChanges();
+                //капча и приветствие
                 if (update.Message?.NewChatMembers != null)
                 {
-                    var newMembers = update.Message.NewChatMembers;
-                    foreach (var member in newMembers)
-                    {
-                        try
-                        {
-                            await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, replyToMessageId: update.Message.MessageId, text: $"Привет, {user.Name}.{Greeting}", cancellationToken: cancellationToken);
-                        }
-                        catch
-                        {
-                            await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, text: $"Привет, {user.Name}.{Greeting}", cancellationToken: cancellationToken);
-                        }
-                    }
+                    ChatHandlers.NewMember(botClient, update, cancellationToken);
                 }
                 //var ids = db.TableUsers.Select(x => x.Id).ToList();
                 //for (int i = 0; i < db.TableUsers.Count(); i++)
@@ -144,7 +134,7 @@ namespace XpAndRepBot
                     if (update.Message.ReplyToMessage != null && (!update.Message.ReplyToMessage.From.IsBot || update.Message.ReplyToMessage.From.Id == BotID)) await ChatHandlers.ReputationUp(botClient, update, db, mes, cancellationToken);
                     //запрос к chatgdp
                     Match match = Regex.Match(mes, @"^.*?([\w/]+)");
-                    if (!_commands.ContainsKey(match.Value) && ((update?.Message?.ReplyToMessage != null && update?.Message?.ReplyToMessage.From.Id == BotID) || (mes.Contains("@XpAndRepBot") && !mes.Contains('/')) || id == MID || id == IID))
+                    if (!_commands.ContainsKey(match.Value) && ((update?.Message?.ReplyToMessage != null && update?.Message?.ReplyToMessage.From.Id == BotID) || (mes.Contains("@XpAndRepBot") && !_commands.Keys.Any(key => mes.StartsWith(key))) || id == MID || id == IID))
                     {
                         ChatHandlers.RequestChatGPT(botClient, update, mes, cancellationToken);
                     }
@@ -159,7 +149,7 @@ namespace XpAndRepBot
                         command.ExecuteAsync(botClient, update, cancellationToken);
                     }
                     List<Users> users = new();
-                    if (mes.Length < 100) users = db.TableUsers.Where(x => x.Roles.StartsWith(mes.Substring(1)) || x.Roles.Contains(", " + mes.Substring(1))).ToList();
+                    if (mes.Length < 100) users = db.TableUsers.Where(x => x.Roles.Equals(mes.Substring(1)) || x.Roles.StartsWith(mes.Substring(1) + ",") || x.Roles.Contains(", " + mes.Substring(1) + ",") || x.Roles.EndsWith(", " + mes.Substring(1))).ToList();
                     if (mes[0] == '@' && users.Count > 0) botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, text: $"{user.Name} призывает {ChatHandlers.Mention(users)}", parseMode: ParseMode.Html, cancellationToken: cancellationToken);
                     List<string> words = new();
                     if (user.Nfc == true)
@@ -308,15 +298,22 @@ namespace XpAndRepBot
                         break;
                     default:
                         var userId = callbackQuery.Message.ReplyToMessage.From.Id;
+                        newText = callbackQuery.Message.Text;
+                        string text = null;
                         if (option[0] == 'm')
                         {
                             inlineKeyboard = await ResponseHandlers.AcceptMariage(option, callbackQuery, botClient, chatId, userId, cancellationToken);
                         }
-                        else
+                        else if (option[0] == 'y' || option[0] == 'n')
                         {
                             inlineKeyboard = await ResponseHandlers.VoteBan(inlineKeyboard, callbackQuery, option, chatId, botClient, cancellationToken, userId);
                         }
-                        newText = callbackQuery.Message.Text;
+                        else
+                        {
+                            var flag = await ResponseHandlers.GetChatPermissions(option, callbackQuery, botClient, chatId, cancellationToken);
+                            inlineKeyboard = callbackQuery.Message.ReplyMarkup;
+                            if (flag) await botClient.DeleteMessageAsync(chatId: chatId, messageId: messageId, cancellationToken);
+                        }
                         break;
                 }
                 await botClient.EditMessageTextAsync(chatId: chatId, replyMarkup: inlineKeyboard, messageId: messageId, text: newText, cancellationToken: cancellationToken);

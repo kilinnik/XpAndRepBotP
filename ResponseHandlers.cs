@@ -25,6 +25,7 @@ using System.Threading;
 using Telegram.Bot.Types.ReplyMarkups;
 using Telegram.Bot;
 using SixLabors.ImageSharp;
+using System.Diagnostics.Metrics;
 
 namespace XpAndRepBot
 {
@@ -129,7 +130,7 @@ namespace XpAndRepBot
             {
                 i = 11;
             }
-
+            if (offset == 0) return await Me(idUser);
             using var connection = new SqlConnection(ConStringDbLexicon);
             var result = new StringBuilder();
             var rows = await connection.QueryAsync<Words>($"select * from dbo.TableUsersLexicons where [UserID] = {user.Id} ORDER BY [Count] DESC OFFSET @Offset ROWS FETCH NEXT 10 ROWS ONLY", new { Offset = offset });
@@ -337,6 +338,7 @@ namespace XpAndRepBot
             using var db = new InfoContext();
             var roleUsers = db.TableUsers.Where(u => u.Roles != null).Select(u => new { u.Roles, u.Name }).ToList();
             var roles = roleUsers.SelectMany(u => u.Roles.Split(", ", StringSplitOptions.RemoveEmptyEntries)).Distinct().ToList();
+            roles.Sort();
             var sb = new StringBuilder("Список ролей:\n");
             foreach (var role in roles)
             {
@@ -442,7 +444,6 @@ namespace XpAndRepBot
         {
             using var db = new InfoContext();
             InlineKeyboardMarkup inlineKeyboard = callbackQuery.Message.ReplyMarkup;
-            string newText = callbackQuery.Message.Text;
             var user2 = db.TableUsers.First(x => x.Id == userId);
             if (callbackQuery.From.Id == userId && user2.Mariage == 0)
             {
@@ -466,6 +467,32 @@ namespace XpAndRepBot
                 }
             }
             return inlineKeyboard;
+        }
+
+        public static async Task<bool> GetChatPermissions(string option, CallbackQuery callbackQuery, ITelegramBotClient botClient, long chatId, CancellationToken cancellationToken)
+        {
+            long userId = long.Parse(option[2..]);
+            var flag = false;
+            if (callbackQuery.From.Id == userId)
+            {
+                if (option.Contains('y'))
+                {
+                    await botClient.RestrictChatMemberAsync(chatId: chatId, userId, new ChatPermissions
+                    {
+                        CanSendMessages = true,
+                        CanSendMediaMessages = true,
+                        CanSendOtherMessages= true,
+                        CanSendPolls= true,
+                        CanAddWebPagePreviews= true,
+                    }, cancellationToken: cancellationToken);
+                }
+                else
+                {
+                    await botClient.BanChatMemberAsync(chatId: chatId, userId: userId, cancellationToken: cancellationToken);
+                }
+                flag = true;
+            }
+            return flag;
         }
     }
 }

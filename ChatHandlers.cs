@@ -10,6 +10,8 @@ using Microsoft.EntityFrameworkCore;
 using System.Data.SqlClient;
 using static XpAndRepBot.Consts;
 using Mirror.ChatGpt.Models.ChatGpt;
+using Telegram.Bot.Types.Enums;
+using Telegram.Bot.Types.ReplyMarkups;
 
 namespace XpAndRepBot
 {
@@ -80,7 +82,49 @@ namespace XpAndRepBot
                             await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, text: await ResponseHandlers.RequestChatGPT(id, subArray), cancellationToken: cancellationToken);
                         }
                     }
-                    catch { await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, text: "Произошла ошибка. Попробуйте повторить вопрос. Чтобы начать новую ветку, упомяните бота. Чтобы продолжить ветку, ответьте на сообщение от бота", cancellationToken: cancellationToken); }
+                    catch { await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, text: "Произошла ошибка. Попробуйте повторить запрос. Чтобы начать новую ветку, упомяните бота. Чтобы продолжить ветку, ответьте на сообщение от бота, где есть число в конце", cancellationToken: cancellationToken); }
+                }
+            }
+        }
+
+        public static async Task NewMember(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken)
+        {
+            var newMembers = update.Message.NewChatMembers;
+            foreach (var member in newMembers)
+            {
+                try
+                {
+                    Random random = new();
+                    int[] array = new int[8];
+                    for (int i = 0; i < array.Length; i++)
+                    {
+                        array[i] = i;
+                    }
+                    for (int i = 0; i < array.Length; i++)
+                    {
+                        int randomIndex = random.Next(i, array.Length);
+                        (array[randomIndex], array[i]) = (array[i], array[randomIndex]);
+                    }
+                    int randomNumber = random.Next(0, 8);
+                    InlineKeyboardButton[][] buttons = new InlineKeyboardButton[1][];
+                    buttons[0] = new InlineKeyboardButton[array.Length];
+                    for (int i = 0; i < array.Length; i++)
+                    {
+                        if (array[i] != randomNumber) buttons[0][i] = InlineKeyboardButton.WithCallbackData(array[i].ToString(), $"{array[i]}n{member.Id}");
+                        else buttons[0][i] = InlineKeyboardButton.WithCallbackData(array[i].ToString(), $"{array[i]}y{member.Id}");
+                    }
+                    InlineKeyboardMarkup inlineKeyboard = new(buttons);
+                    await botClient.RestrictChatMemberAsync(chatId: update.Message.Chat.Id, member.Id, new ChatPermissions
+                    {
+                        CanSendMessages = false,
+                        CanSendMediaMessages = false
+                    }, cancellationToken: cancellationToken);
+                    await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, replyMarkup: inlineKeyboard, replyToMessageId: update.Message.MessageId, text: $"Нажми на {randomNumber}, чтобы можно было писать (press {randomNumber} to be able to write).", cancellationToken: cancellationToken); 
+                    await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, replyToMessageId: update.Message.MessageId, text: $"Привет, {member.FirstName}.{Greeting}", cancellationToken: cancellationToken);
+                }
+                catch
+                {
+                    await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, text: $"Привет, {member.FirstName}.{Greeting}", cancellationToken: cancellationToken);
                 }
             }
         }
@@ -98,8 +142,10 @@ namespace XpAndRepBot
         {
             try
             {
+                var flag = update.Message.MessageId % 10 == 0;
                 if (update?.Message?.Animation != null && user.Lvl < 10) //удаление гифок
                 {
+                    if (flag) await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, replyToMessageId: update.Message.MessageId, text: "Гифки с 10 лвла.\n/m - посмотреть свой лвл", cancellationToken: cancellationToken);
                     await botClient.DeleteMessageAsync(update.Message.Chat.Id, update.Message.MessageId, cancellationToken);
                 }
                 if (update?.Message?.Sticker != null && user.Lvl < 15) //удаление стикеров
@@ -108,11 +154,13 @@ namespace XpAndRepBot
                     var set = await botClient.GetStickerSetAsync(sticker.SetName, cancellationToken: cancellationToken);
                     if (set.Name != "UnoWarStickers")
                     {
+                        if (flag) await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, replyToMessageId: update.Message.MessageId, text: "Стикеры с 15 лвла, только стикеры для Уно с любого лвла.\n/m - посмотреть свой лвл", cancellationToken: cancellationToken);
                         await botClient.DeleteMessageAsync(update.Message.Chat.Id, update.Message.MessageId, cancellationToken);
                     }
                 }
                 if (update?.Message?.Poll != null && user.Lvl < 20) //удаление опросов
                 {
+                    if (flag) await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, replyToMessageId: update.Message.MessageId, text: "Опросы с 20 лвла.\n/m - посмотреть свой лвл", cancellationToken: cancellationToken);
                     await botClient.DeleteMessageAsync(update.Message.Chat.Id, update.Message.MessageId, cancellationToken);
                 }
             }
