@@ -9,12 +9,6 @@ namespace XpAndRepBot
         public int Count { get; set; }
     }
 
-    public class Lexicon
-    {
-        public string TableName { get; set; }
-        public int CountRow { get; set; }
-    }
-
     public class Users
     {
         public long Id { get; set; }
@@ -33,6 +27,7 @@ namespace XpAndRepBot
         public int CountRepeatMessage { get; set; }
         public long Mariage { get; set; }
         public DateTime DateMariage { get; set; }
+        public string Username { get; set; }
 
         public Users(long id, string name, int lvl, int curXp, int rep)
         {
@@ -50,6 +45,7 @@ namespace XpAndRepBot
             LastMessage = "";
             Mariage = 0;
             DateMariage = DateTime.ParseExact("1900-01-01 00:00:00.000", "yyyy-MM-dd HH:mm:ss.fff", System.Globalization.CultureInfo.InvariantCulture);
+            Username = "";
         }
     }
 

@@ -92,7 +92,7 @@ namespace XpAndRepBot
             var newMembers = update.Message.NewChatMembers;
             foreach (var member in newMembers)
             {
-                try
+                if (!member.IsBot)
                 {
                     Random random = new();
                     int[] array = new int[8];
@@ -117,14 +117,16 @@ namespace XpAndRepBot
                     await botClient.RestrictChatMemberAsync(chatId: update.Message.Chat.Id, member.Id, new ChatPermissions
                     {
                         CanSendMessages = false,
-                        CanSendMediaMessages = false
+                        CanSendMediaMessages = false,
                     }, cancellationToken: cancellationToken);
-                    await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, replyMarkup: inlineKeyboard, replyToMessageId: update.Message.MessageId, text: $"Нажми на {randomNumber}, чтобы можно было писать (press {randomNumber} to be able to write).", cancellationToken: cancellationToken); 
-                    await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, replyToMessageId: update.Message.MessageId, text: $"Привет, {member.FirstName}.{Greeting}", cancellationToken: cancellationToken);
-                }
-                catch
-                {
-                    await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, text: $"Привет, {member.FirstName}.{Greeting}", cancellationToken: cancellationToken);
+                    try
+                    {
+                        await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, replyMarkup: inlineKeyboard, replyToMessageId: update.Message.MessageId, text: $"Нажми на {randomNumber}, чтобы можно было писать. Бан за неверный ответ (press {randomNumber} to be able to write. Ban for a wrong answer).", cancellationToken: cancellationToken);
+                    }
+                    catch
+                    {
+                        await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, replyMarkup: inlineKeyboard, text: $"Нажми на {randomNumber}, чтобы можно было писать. Бан за неверный ответ (press {randomNumber} to be able to write. Ban for a wrong answer).", cancellationToken: cancellationToken);
+                    }
                 }
             }
         }
@@ -143,6 +145,10 @@ namespace XpAndRepBot
             try
             {
                 var flag = update.Message.MessageId % 10 == 0;
+                if (update.Message.ReplyToMessage?.From.Id == 777000 && ForbiddenWords.Any(s => (bool)(update.Message.Text?.ToLower().Contains(s))))
+                {
+                    await botClient.DeleteMessageAsync(update.Message.Chat.Id, update.Message.MessageId, cancellationToken);
+                }
                 if (update?.Message?.Animation != null && user.Lvl < 10) //удаление гифок
                 {
                     if (flag) await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, replyToMessageId: update.Message.MessageId, text: "Гифки с 10 лвла.\n/m - посмотреть свой лвл", cancellationToken: cancellationToken);
@@ -167,7 +173,7 @@ namespace XpAndRepBot
             catch { }
         }
 
-        public static async Task CreateAndFillTable(Users user, string mes)
+        public static async Task AddUserAndFillTable(Users user, string mes)
         {
             using SqlConnection connection = new(ConStringDbLexicon);
             await connection.OpenAsync();
@@ -192,17 +198,22 @@ namespace XpAndRepBot
             }
         }
 
-        public static string Mention(List<Users> users)
+        public static void Mention(List<Users> users, string name, long chatId, ITelegramBotClient botClient, CancellationToken cancellationToken)
         {
-            string res = "";
+            string res = $"{name} призывает ";
             using var db = new InfoContext();
             var count = users.Count - 1;
             for (int i = 0; i < count; i++)
             {
-                res += $"<a href=\"tg://user?id={users[i].Id}\">{users[i].Name}</a>, ";
+                res += $"<a href=\"tg://user?id={users[i].Id}\">{users[i].Name}</a> ";
+                if ((i + 1) % 5 == 0)
+                {
+                    botClient.SendTextMessageAsync(chatId: chatId, text: res, parseMode: ParseMode.Html, cancellationToken: cancellationToken);
+                    res = $"{name} призывает ";
+                }
             }
-            res += $"<a href=\"tg://user?id={users[count].Id}\">{users[count].Name}</a>.";
-            return res;
+            res += $"<a href=\"tg://user?id={users[count].Id}\">{users[count].Name}</a>";
+            botClient.SendTextMessageAsync(chatId: chatId, text: res, parseMode: ParseMode.Html, cancellationToken: cancellationToken);
         }
 
         public static string Nfc(Users user, DbContext db)

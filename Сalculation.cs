@@ -27,7 +27,7 @@ namespace XpAndRepBot
         {
             using SqlConnection connection = new(ConStringDbLexicon);
             await connection.OpenAsync();
-            SqlCommand command = new($"SELECT  RowNumber from (SELECT ROW_NUMBER() OVER (ORDER BY SUM([Count]) DESC) AS RowNumber, UserID, COUNT(*) AS UserCount FROM dbo.TableUsersLexicons GROUP BY UserID) AS T WHERE UserID = {user.Id}", connection);
+            SqlCommand command = new($"SELECT RowNumber from (SELECT ROW_NUMBER() OVER (ORDER BY Count(*) DESC) AS RowNumber, UserID, COUNT(*) AS UserCount FROM dbo.TableUsersLexicons GROUP BY UserID) AS T WHERE UserID = {user.Id}", connection);
             SqlDataReader reader = await command.ExecuteReaderAsync();
             int position = 1;
             var str = user.Id.ToString();

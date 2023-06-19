@@ -200,7 +200,7 @@ namespace XpAndRepBot
             var result = "";
             while (await reader.ReadAsync())
             {
-                result= $"✍🏿 Слово {word} употреблялось {reader.GetInt32(2)} раз. Оно занимает {reader.GetInt64(0)} место по частоте употребления";
+                result = $"✍🏿 Слово {word} употреблялось {reader.GetInt32(2)} раз. Оно занимает {reader.GetInt64(0)} место по частоте употребления";
             }
             reader.Close();
             if (result == "") result = "Слово ни разу не употреблялось";
@@ -213,7 +213,7 @@ namespace XpAndRepBot
             if (update.Message.ReplyToMessage.From.Id != update.Message.From.Id)
             {
                 var list = mes.Split(" ");
-                if (list.Any(repWords.Contains))
+                if (list.Any(RepWords.Contains))
                 {
                     var idUser = update.Message.ReplyToMessage.From.Id;
                     var user = db.TableUsers.FirstOrDefault(x => x.Id == idUser);
@@ -225,7 +225,7 @@ namespace XpAndRepBot
             }
             return "";
         }
-        
+
         public static async Task<string> RequestChatGPT(int id, MessageEntry[] messages)
         {
             var services = new ServiceCollection();
@@ -235,7 +235,7 @@ namespace XpAndRepBot
             var res = await service.ChatAsync(new ChatCompletionRequest
             {
                 Model = "gpt-3.5-turbo", //only gpt-3.5-turbo or gpt-3.5-turbo-0301 can be chosen now
-                Messages = messages 
+                Messages = messages
             }, default);
             if (Program.Context.TryGetValue(id, out MessageEntry[] array))
             {
@@ -481,10 +481,14 @@ namespace XpAndRepBot
                     {
                         CanSendMessages = true,
                         CanSendMediaMessages = true,
-                        CanSendOtherMessages= true,
-                        CanSendPolls= true,
-                        CanAddWebPagePreviews= true,
+                        CanSendOtherMessages = true,
+                        CanSendPolls = true,
+                        CanAddWebPagePreviews = true,
+                        CanChangeInfo = true,
+                        CanInviteUsers = true,
+                        CanPinMessages = true,
                     }, cancellationToken: cancellationToken);
+                    await botClient.SendTextMessageAsync(chatId: chatId, text: $"Привет, {callbackQuery.From.FirstName}.{Greeting}", cancellationToken: cancellationToken);
                 }
                 else
                 {

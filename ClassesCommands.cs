@@ -10,6 +10,7 @@ using System.Linq;
 using static XpAndRepBot.Consts;
 using Telegram.Bot.Types.Enums;
 using System;
+using Microsoft.VisualBasic;
 
 namespace XpAndRepBot
 {
@@ -24,11 +25,11 @@ namespace XpAndRepBot
         {
             try
             {
-                await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, replyToMessageId: update.Message.MessageId, text: HelpText, cancellationToken: cancellationToken);
+                await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, replyToMessageId: update.Message.MessageId, parseMode: ParseMode.Html, text: HelpText, cancellationToken: cancellationToken);
             }
             catch
             {
-                await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, text: HelpText, cancellationToken: cancellationToken);
+                await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, parseMode: ParseMode.Html, text: HelpText, cancellationToken: cancellationToken);
             }
         }
     }
@@ -45,27 +46,38 @@ namespace XpAndRepBot
                     InlineKeyboardButton.WithCallbackData("Вперёд", "nextmw"),
                 }
             });
-            if (update?.Message?.ReplyToMessage != null && !update.Message.ReplyToMessage.From.IsBot && update.Message.ReplyToMessage.From.Id != 777000)
+            long userId = 0;
+            if (update.Message.Entities != null && update.Message.Entities.Any(x => x.Type == MessageEntityType.TextMention || x.Type == MessageEntityType.Mention))
             {
-                try
+                foreach (var entity in update.Message.Entities)
                 {
-                    await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, replyMarkup: inlineKeyboard, replyToMessageId: update.Message.ReplyToMessage.MessageId, text: await ResponseHandlers.Me(update.Message.ReplyToMessage.From.Id), cancellationToken: cancellationToken);
+                    if (entity.Type == MessageEntityType.TextMention)
+                    {
+                        userId = entity.User.Id;
+                    }
+                    else if (entity.Type == MessageEntityType.Mention)
+                    {
+                        using var db = new InfoContext();
+                        var user = db.TableUsers.FirstOrDefault(x => x.Username == update.Message.Text.Substring(entity.Offset + 1, entity.Length - 1));
+                        userId = user.Id;
+                    }
                 }
-                catch
-                {
-                    await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, text: await ResponseHandlers.Me(update.Message.ReplyToMessage.From.Id), cancellationToken: cancellationToken);
-                }
+            }
+            else if (update?.Message?.ReplyToMessage != null && !update.Message.ReplyToMessage.From.IsBot && update.Message.ReplyToMessage.From.Id != 777000)
+            {
+                userId = update.Message.ReplyToMessage.From.Id;
             }
             else
             {
-                try
-                {
-                    await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, replyMarkup: inlineKeyboard, replyToMessageId: update.Message.MessageId, text: await ResponseHandlers.Me(update.Message.From.Id), cancellationToken: cancellationToken);
-                }
-                catch
-                {
-                    await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, text: await ResponseHandlers.Me(update.Message.From.Id), cancellationToken: cancellationToken);
-                }
+                userId = update.Message.From.Id;
+            }
+            try
+            {
+                await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, replyMarkup: inlineKeyboard, replyToMessageId: update.Message.MessageId, text: await ResponseHandlers.Me(userId), cancellationToken: cancellationToken);
+            }
+            catch
+            {
+                await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, text: await ResponseHandlers.Me(userId), cancellationToken: cancellationToken);
             }
         }
     }
@@ -122,11 +134,11 @@ namespace XpAndRepBot
         {
             try
             {
-                await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, replyToMessageId: update.Message.MessageId, text: RulesText, cancellationToken: cancellationToken);
+                await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, replyToMessageId: update.Message.MessageId, text: RulesText, parseMode: ParseMode.Html, cancellationToken: cancellationToken);
             }
             catch
             {
-                await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, text: RulesText, cancellationToken: cancellationToken);
+                await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, text: RulesText, parseMode: ParseMode.Html, cancellationToken: cancellationToken);
             }
         }
     }
@@ -261,42 +273,6 @@ namespace XpAndRepBot
         }
     }
 
-    public class WarnCommand : ICommand
-    {
-        public async Task ExecuteAsync(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken)
-        {
-            if (update.Message.From.Id == IID)
-            {
-                try
-                {
-                    await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, replyToMessageId: update.Message.ReplyToMessage.MessageId, text: ResponseHandlers.Warn(update), cancellationToken: cancellationToken);
-                }
-                catch
-                {
-                    await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, text: ResponseHandlers.Warn(update), cancellationToken: cancellationToken);
-                }
-            }
-        }
-    }
-
-    public class UnwarnCommand : ICommand
-    {
-        public async Task ExecuteAsync(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken)
-        {
-            if (update.Message.From.Id == IID)
-            {
-                try
-                {
-                    await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, replyToMessageId: update.Message.ReplyToMessage.MessageId, text: ResponseHandlers.Unwarn(update), cancellationToken: cancellationToken);
-                }
-                catch
-                {
-                    await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, text: ResponseHandlers.Unwarn(update), cancellationToken: cancellationToken);
-                }
-            }
-        }
-    }
-
     public class TgEmpressCommand : ICommand
     {
         public async Task ExecuteAsync(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken)
@@ -327,6 +303,7 @@ namespace XpAndRepBot
                     await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, text: ResponseHandlers.GiveRole(update.Message.ReplyToMessage.From.Id, update.Message.Text[6..]), cancellationToken: cancellationToken);
                 }
             }
+            else await botClient.DeleteMessageAsync(update.Message.Chat.Id, update.Message.MessageId, cancellationToken);
         }
     }
 
@@ -402,6 +379,7 @@ namespace XpAndRepBot
                     await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, text: ResponseHandlers.DelRole(update.Message.ReplyToMessage.From.Id, update.Message.Text[5..]), parseMode: ParseMode.Html, cancellationToken: cancellationToken);
                 }
             }
+            else await botClient.DeleteMessageAsync(update.Message.Chat.Id, update.Message.MessageId, cancellationToken);
         }
     }
 
@@ -415,51 +393,72 @@ namespace XpAndRepBot
             }
             catch
             {
-                _ = await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, text: await ResponseHandlers.RequestBalaboba(update.Message.Text[3..]), cancellationToken: cancellationToken);
+                await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, text: await ResponseHandlers.RequestBalaboba(update.Message.Text[3..]), cancellationToken: cancellationToken);
             }
         }
     }
 
-    public class VoteBanCommand : ICommand
+    //public class VoteBanCommand : ICommand
+    //{
+    //    public async Task ExecuteAsync(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken)
+    //    {
+    //        if (update?.Message?.ReplyToMessage != null && !update.Message.ReplyToMessage.From.IsBot && update.Message.ReplyToMessage.From.Id != 777000)
+    //        {
+    //            var db = new InfoContext();
+    //            long userId1 = update.Message.ReplyToMessage.From.Id;
+    //            var user1 = db.TableUsers.First(x => x.Id == userId1);
+    //            long userId2 = update.Message.From.Id;
+    //            var user2 = db.TableUsers.First(x => x.Id == userId2);
+    //            var inlineKeyboard = new InlineKeyboardMarkup(new[]
+    //            {
+    //                new[]
+    //                {
+    //                    InlineKeyboardButton.WithCallbackData("Да ✅ - 0", $"y0_{userId1}"),
+    //                    InlineKeyboardButton.WithCallbackData("Нет ❌ - 0", $"n0_{userId1}"),
+    //                }
+    //            });
+    //            var chatMember = await botClient.GetChatMemberAsync(update.Message.Chat.Id, userId1, cancellationToken: cancellationToken);
+    //            if (chatMember.Status != ChatMemberStatus.Administrator && chatMember.Status != ChatMemberStatus.Creator)
+    //            {
+    //                try
+    //                {
+    //                    await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, replyToMessageId: update.Message.ReplyToMessage.MessageId, text: $"{user2.Name} начал голосование за бан {user1.Name}", replyMarkup: inlineKeyboard, cancellationToken: cancellationToken);
+    //                }
+    //                catch { }
+    //            }
+    //        }
+    //        else
+    //        {
+    //            try
+    //            {
+    //                await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, replyToMessageId: update.Message.MessageId, text: "Кого баним? Ответьте на сообщение пользователя. Воутбан можно начинать строго по правилам /r", cancellationToken: cancellationToken);
+    //            }
+    //            catch
+    //            {
+    //                await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, text: "Кого баним? Ответьте на сообщение пользователя. Воутбан можно начинать строго по правилам /r", cancellationToken: cancellationToken);
+    //            }
+    //        }
+    //    }
+    //}
+
+    public class HelpAdminCommand : ICommand
     {
         public async Task ExecuteAsync(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken)
         {
-            if (update?.Message?.ReplyToMessage != null && !update.Message.ReplyToMessage.From.IsBot && update.Message.ReplyToMessage.From.Id != 777000)
-            {
-                var db = new InfoContext();
-                long userId1 = update.Message.ReplyToMessage.From.Id;
-                var user1 = db.TableUsers.First(x => x.Id == userId1);
-                long userId2 = update.Message.From.Id;
-                var user2 = db.TableUsers.First(x => x.Id == userId2);
-                var inlineKeyboard = new InlineKeyboardMarkup(new[]
-                {
-                    new[]
-                    {
-                        InlineKeyboardButton.WithCallbackData("Да ✅ - 0", $"y0_{userId1}"),
-                        InlineKeyboardButton.WithCallbackData("Нет ❌ - 0", $"n0_{userId1}"),
-                    }
-                });
-                var chatMember = await botClient.GetChatMemberAsync(update.Message.Chat.Id, userId1, cancellationToken: cancellationToken);
-                if (chatMember.Status != ChatMemberStatus.Administrator && chatMember.Status != ChatMemberStatus.Creator)
-                {
-                    try
-                    {
-                        await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, replyToMessageId: update.Message.ReplyToMessage.MessageId, text: $"{user2.Name} начал голосование за бан {user1.Name}", replyMarkup: inlineKeyboard, cancellationToken: cancellationToken);
-                    }
-                    catch { }
-                }
-            }
-            else
+            using var db = new InfoContext();
+            var user = db.TableUsers.FirstOrDefault(x => x.Id == update.Message.From.Id && x.Roles.Contains("модер"));
+            if (user != null && update.Message.From.Id != update.Message.ReplyToMessage?.From.Id)
             {
                 try
                 {
-                    await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, replyToMessageId: update.Message.MessageId, text: "Кого баним? Ответьте на сообщение пользователя. Воутбан можно начинать строго по правилам /r", cancellationToken: cancellationToken);
+                    await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, replyToMessageId: update.Message.MessageId, parseMode: ParseMode.Html, text: HelpAdminText, cancellationToken: cancellationToken);
                 }
                 catch
                 {
-                    await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, text: "Кого баним? Ответьте на сообщение пользователя. Воутбан можно начинать строго по правилам /r", cancellationToken: cancellationToken);
+                    await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, parseMode: ParseMode.Html, text: HelpAdminText, cancellationToken: cancellationToken);
                 }
             }
+            else await botClient.DeleteMessageAsync(update.Message.Chat.Id, update.Message.MessageId, cancellationToken);
         }
     }
 
@@ -467,16 +466,235 @@ namespace XpAndRepBot
     {
         public async Task ExecuteAsync(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken)
         {
-            if (update.Message.From.Id == IID)
+            using var db = new InfoContext();
+            var user = db.TableUsers.FirstOrDefault(x => x.Id == update.Message.From.Id && x.Roles.Contains("модер"));
+            if (user != null && update.Message.From.Id != update.Message.ReplyToMessage?.From.Id)
             {
                 try
                 {
-
                     await botClient.BanChatMemberAsync(chatId: update.Message.Chat.Id, userId: update.Message.ReplyToMessage.From.Id, cancellationToken: cancellationToken);
                     await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, replyToMessageId: update.Message.ReplyToMessage.MessageId, text: $"{update.Message.ReplyToMessage.From.FirstName} забанен", cancellationToken: cancellationToken);
                     await botClient.DeleteMessageAsync(update.Message.Chat.Id, update.Message.ReplyToMessage.MessageId, cancellationToken);
                 }
                 catch { }
+            }
+            else await botClient.DeleteMessageAsync(update.Message.Chat.Id, update.Message.MessageId, cancellationToken);
+        }
+    }
+
+    public class UnBanCommand : ICommand
+    {
+        public async Task ExecuteAsync(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken)
+        {
+            using var db = new InfoContext();
+            var user = db.TableUsers.FirstOrDefault(x => x.Id == update.Message.From.Id && x.Roles.Contains("модер"));
+            if (user != null && update.Message.From.Id != update.Message.ReplyToMessage?.From.Id)
+            {
+                long userId = 0;
+                var name = "";
+                if (update.Message.Entities != null && update.Message.Entities.Any(x => x.Type == MessageEntityType.Mention))
+                {
+                    foreach (var entity in update.Message.Entities)
+                    {
+                        if (entity.Type == MessageEntityType.Mention)
+                        {
+                            var userMention = db.TableUsers.FirstOrDefault(x => x.Username == update.Message.Text.Substring(entity.Offset + 1, entity.Length - 1));
+                            userId = userMention.Id;
+                            name = userMention.Name;
+                        }
+                    }
+                }
+                else if (update.Message?.ReplyToMessage != null)
+                {
+                    userId = update.Message.ReplyToMessage.From.Id;
+                    name = update.Message.ReplyToMessage.From.FirstName;
+                }
+                try
+                {
+                    await botClient.RestrictChatMemberAsync(
+                        chatId: update.Message.Chat.Id,
+                        userId,
+                        new ChatPermissions
+                        {
+                            CanSendMessages = true,
+                            CanSendMediaMessages = true,
+                            CanSendOtherMessages = true,
+                            CanSendPolls = true,
+                            CanAddWebPagePreviews = true,
+                            CanChangeInfo = true,
+                            CanInviteUsers = true,
+                            CanPinMessages = true,
+                        },
+                        cancellationToken: cancellationToken
+                    );
+                    await botClient.SendTextMessageAsync(
+                        chatId: update.Message.Chat.Id,
+                        replyToMessageId: update.Message.MessageId,
+                        text: $"{name} разбанен",
+                        cancellationToken: cancellationToken
+                    );
+                }
+                catch { }
+            }
+            else await botClient.DeleteMessageAsync(update.Message.Chat.Id, update.Message.MessageId, cancellationToken);
+        }
+    }
+
+    public class WarnCommand : ICommand
+    {
+        public async Task ExecuteAsync(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken)
+        {
+            using var db = new InfoContext();
+            var user = db.TableUsers.FirstOrDefault(x => x.Id == update.Message.From.Id && x.Roles.Contains("модер"));
+            if (user != null && update.Message.From.Id != update.Message.ReplyToMessage?.From.Id)
+            {
+                try
+                {
+                    await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, replyToMessageId: update.Message.ReplyToMessage.MessageId, text: ResponseHandlers.Warn(update), cancellationToken: cancellationToken);
+                }
+                catch
+                {
+                    await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, text: ResponseHandlers.Warn(update), cancellationToken: cancellationToken);
+                }
+            }
+            else await botClient.DeleteMessageAsync(update.Message.Chat.Id, update.Message.MessageId, cancellationToken);
+        }
+    }
+
+    public class UnwarnCommand : ICommand
+    {
+        public async Task ExecuteAsync(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken)
+        {
+            using var db = new InfoContext();
+            var user = db.TableUsers.FirstOrDefault(x => x.Id == update.Message.From.Id && x.Roles.Contains("модер"));
+            if (user != null && update.Message.From.Id != update.Message.ReplyToMessage?.From.Id)
+            {
+                try
+                {
+                    await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, replyToMessageId: update.Message.ReplyToMessage.MessageId, text: ResponseHandlers.Unwarn(update), cancellationToken: cancellationToken);
+                }
+                catch
+                {
+                    await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, text: ResponseHandlers.Unwarn(update), cancellationToken: cancellationToken);
+                }
+            }
+            else await botClient.DeleteMessageAsync(update.Message.Chat.Id, update.Message.MessageId, cancellationToken);
+        }
+    }
+
+    public class MuteCommand : ICommand
+    {
+        public async Task ExecuteAsync(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken)
+        {
+            using var db = new InfoContext();
+            var user = db.TableUsers.FirstOrDefault(x => x.Id == update.Message.From.Id && x.Roles.Contains("модер"));
+            if (user != null && update.Message.From.Id != update.Message.ReplyToMessage?.From.Id)
+            {
+                string[] parts = update.Message.Text[6..].Split(' ');
+                int days = 0, hours = 0, minutes = 0;
+                foreach (string part in parts)
+                {
+                    if (part.EndsWith("d"))
+                    {
+                        if (int.TryParse(part.TrimEnd('d'), out int result))
+                            days = result;
+                    }
+                    else if (part.EndsWith("h"))
+                    {
+                        if (int.TryParse(part.TrimEnd('h'), out int result))
+                            hours = result;
+                    }
+                    else if (part.EndsWith("m"))
+                    {
+                        if (int.TryParse(part.TrimEnd('m'), out int result))
+                            minutes = result;
+                    }
+                }
+                if (days != 0 || hours != 0 || minutes != 0)
+                {
+                    DateTime muteDate = DateTime.Now.AddDays(days).AddHours(hours).AddMinutes(minutes);
+                    await botClient.RestrictChatMemberAsync(
+                        chatId: update.Message.Chat.Id,
+                        userId: update.Message.ReplyToMessage.From.Id,
+                        new ChatPermissions
+                        {
+                            CanSendMessages = false,
+                            CanSendMediaMessages = false
+                        },
+                        untilDate: muteDate,
+                        cancellationToken: cancellationToken
+                    );
+                    try
+                    {
+                        await botClient.SendTextMessageAsync(
+                            chatId: update.Message.Chat.Id,
+                            replyToMessageId: update.Message.ReplyToMessage.MessageId,
+                            text: $"{update.Message.ReplyToMessage.From.FirstName} получил мут на {GetFormattedDuration(days, hours, minutes)} до {muteDate:dd.MM.yyyy HH:mm}",
+                            cancellationToken: cancellationToken
+                        );
+                    }
+                    catch
+                    {
+                        await botClient.SendTextMessageAsync(
+                            chatId: update.Message.Chat.Id,
+                            text: $"{update.Message.ReplyToMessage.From.FirstName} получил мут на {GetFormattedDuration(days, hours, minutes)} минут до {muteDate:dd.MM.yyyy HH:mm}",
+                            cancellationToken: cancellationToken
+                        );
+                    }
+                }
+                else
+                {
+                    await botClient.SendTextMessageAsync(
+                            chatId: update.Message.Chat.Id,
+                            text: $"Команда мута введена некорректно",
+                            cancellationToken: cancellationToken
+                        );
+                }
+            }
+            else await botClient.DeleteMessageAsync(update.Message.Chat.Id, update.Message.MessageId, cancellationToken);
+        }
+
+        private static string GetFormattedDuration(int days, int hours, int minutes)
+        {
+            string duration = "";
+
+            if (days > 0)
+            {
+                string daysWord = GetNounForm(days, "день", "дня", "дней");
+                duration += $"{days} {daysWord} ";
+            }
+
+            if (hours > 0)
+            {
+                string hoursWord = GetNounForm(hours, "час", "часа", "часов");
+                duration += $"{hours} {hoursWord} ";
+            }
+
+            if (minutes > 0)
+            {
+                string minutesWord = GetNounForm(minutes, "минуту", "минуты", "минут");
+                duration += $"{minutes} {minutesWord} ";
+            }
+
+            return duration.Trim();
+        }
+
+        private static string GetNounForm(int number, string form1, string form2, string form5)
+        {
+            int mod10 = number % 10;
+            int mod100 = number % 100;
+            if (mod100 >= 11 && mod100 <= 19)
+                return form5;
+            switch (mod10)
+            {
+                case 1:
+                    return form1;
+                case 2:
+                case 3:
+                case 4:
+                    return form2;
+                default:
+                    return form5;
             }
         }
     }

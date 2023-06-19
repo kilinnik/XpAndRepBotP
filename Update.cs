@@ -14,7 +14,8 @@ using Telegram.Bot.Types.ReplyMarkups;
 using static XpAndRepBot.Consts;
 using System.Data;
 using System.IO;
-using static OpenAI.GPT3.ObjectModels.SharedModels.IOpenAiModels;
+using System.Globalization;
+using System.Speech.Recognition;
 
 namespace XpAndRepBot
 {
@@ -34,9 +35,6 @@ namespace XpAndRepBot
             {"/porno", new RoflCommand() },
             {"/hc", new HelpChatGPTCommand() },
             {"/im", new ImageDalleCommand() },
-            {"/warn", new WarnCommand() },
-            {"/unwarn", new UnwarnCommand() },
-            {"/unw", new UnwarnCommand() },
             {"/l", new TopLexiconCommand() },
             {"/tge", new TgEmpressCommand() },
             {"/role", new RoleCommand() },
@@ -44,28 +42,34 @@ namespace XpAndRepBot
             {"/nfc", new NoFuckChallengeCommand() },
             {"/unr", new UnRoleCommand() },
             {"/b", new BalabobaCommand() },
-            {"/vb", new VoteBanCommand() },
-            {"/ban", new BanCommand() },
             {"/w", new WordCommand() },
             {"брак", new MariageCommand() },
             {"браки", new MariagesCommand() },
             {"статус", new StatusCommand() },
-            {"развод", new DivorceCommand() }
+            {"развод", new DivorceCommand() },
+            {"/ha", new HelpAdminCommand() },
+            {"/ban", new BanCommand() },
+            {"/unb", new UnBanCommand() },
+            {"/warn", new WarnCommand() },
+            {"/unwarn", new UnwarnCommand() },
+            {"/unw", new UnwarnCommand() },
+            {"/mute", new MuteCommand() }
         };
 
         public async Task HandleUpdateAsync(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken)
         {
             Debug.WriteLine(JsonSerializer.Serialize(update));
-            //inline buttons
+            //обработка нажатия кнопок
             if (update.Type == UpdateType.CallbackQuery)
             {
                 await HandleCallbackQuery(botClient, update.CallbackQuery, cancellationToken);
             }
             using var db = new InfoContext();
-            if (update.Message?.Chat?.Id is long id && (id == IgruhaChatID || id == MyChatID || id == MID || id == IID) && !update.Message.From.IsBot)
+            if (update.Message?.Chat?.Id is long id && (id == IgruhaChatID || id == MyChatID || id == MID || id == IID))
             {
                 var idUser = update.Message.From.Id;
                 var user = db.TableUsers.FirstOrDefault(x => x.Id == idUser);
+                //добавить нового юзера в БД
                 if (user == null)
                 {
                     string name = update.Message.From.FirstName;
@@ -76,6 +80,7 @@ namespace XpAndRepBot
                     user = new Users(idUser, name, 0, 0, 0);
                     db.TableUsers.Add(user);
                 }
+                user.Username = update.Message.From.Username ?? user.Username;
                 if (user.Name == "0")
                 {
                     user.Name = update.Message.From.FirstName;
@@ -86,7 +91,7 @@ namespace XpAndRepBot
                 }
                 user.TimeLastMes = update.Message.Date.AddHours(3);
                 db.SaveChanges();
-                //капча и приветствие
+                //капча при входе
                 if (update.Message?.NewChatMembers != null)
                 {
                     ChatHandlers.NewMember(botClient, update, cancellationToken);
@@ -125,9 +130,30 @@ namespace XpAndRepBot
                 }
                 //удаление гифок, стикеров и опросов
                 await ChatHandlers.Delete(botClient, update, user, cancellationToken);
-                if (update?.Message?.Text != null || update?.Message?.Caption is not null)
+                if (update?.Message?.Text != null || update?.Message?.Caption != null)// || update?.Message?.Voice != null)
                 {
                     var mes = update.Message.Caption ?? update.Message.Text;
+                    //try
+                    //{
+                    //    if (update.Message.Voice != null)
+                    //    {
+                    //        var fileId = update.Message.Voice.FileId;
+                    //        var file = await botClient.GetFileAsync(fileId, cancellationToken: cancellationToken);
+                    //        using var stream = new MemoryStream();
+                    //        await botClient.DownloadFileAsync(file.FilePath, stream);
+                    //        var culture = new CultureInfo("ru-RU");
+                    //        var recognizerInfo = SpeechRecognitionEngine.InstalledRecognizers() .FirstOrDefault(r => r.Culture.Equals(culture));
+                    //        if (recognizerInfo == null) return;
+                    //        using var recognizer = new SpeechRecognitionEngine(recognizerInfo.Id);
+                    //        recognizer.SetInputToWaveStream(stream);
+                    //        recognizer.LoadGrammar(new DictationGrammar());
+                    //        recognizer.UpdateRecognizerSetting("CFGConfidenceRejectionThreshold", 50);
+                    //        var result = recognizer.Recognize();
+                    //        if (result != null) mes = result.Text;
+                    //        else mes = "";
+                    //    }
+                    //}
+                    //catch { return; }
                     //опыт
                     user.CurXp += mes.Length;
                     //повышение репутации
@@ -138,8 +164,8 @@ namespace XpAndRepBot
                     {
                         ChatHandlers.RequestChatGPT(botClient, update, mes, cancellationToken);
                     }
-                    //создание и заполнение таблицы
-                    await ChatHandlers.CreateAndFillTable(user, mes);
+                    //заполнение таблицы лексикона
+                    await ChatHandlers.AddUserAndFillTable(user, mes);
                     //повышение уровня
                     if (update.Message?.Chat?.Id != MID) await ChatHandlers.LvlUp(botClient, update, db, user, cancellationToken);
                     //команды
@@ -149,8 +175,9 @@ namespace XpAndRepBot
                         command.ExecuteAsync(botClient, update, cancellationToken);
                     }
                     List<Users> users = new();
+                    //упоминание роли
                     if (mes.Length < 100) users = db.TableUsers.Where(x => x.Roles.Equals(mes.Substring(1)) || x.Roles.StartsWith(mes.Substring(1) + ",") || x.Roles.Contains(", " + mes.Substring(1) + ",") || x.Roles.EndsWith(", " + mes.Substring(1))).ToList();
-                    if (mes[0] == '@' && users.Count > 0) botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, text: $"{user.Name} призывает {ChatHandlers.Mention(users)}", parseMode: ParseMode.Html, cancellationToken: cancellationToken);
+                    if (mes[0] == '@' && users.Count > 0) ChatHandlers.Mention(users, user.Name, update.Message.Chat.Id, botClient, cancellationToken);
                     List<string> words = new();
                     if (user.Nfc == true)
                     {
@@ -304,10 +331,10 @@ namespace XpAndRepBot
                         {
                             inlineKeyboard = await ResponseHandlers.AcceptMariage(option, callbackQuery, botClient, chatId, userId, cancellationToken);
                         }
-                        else if (option[0] == 'y' || option[0] == 'n')
-                        {
-                            inlineKeyboard = await ResponseHandlers.VoteBan(inlineKeyboard, callbackQuery, option, chatId, botClient, cancellationToken, userId);
-                        }
+                        //else if (option[0] == 'y' || option[0] == 'n')
+                        //{
+                        //    inlineKeyboard = await ResponseHandlers.VoteBan(inlineKeyboard, callbackQuery, option, chatId, botClient, cancellationToken, userId);
+                        //}
                         else
                         {
                             var flag = await ResponseHandlers.GetChatPermissions(option, callbackQuery, botClient, chatId, cancellationToken);
