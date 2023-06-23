@@ -34,6 +34,21 @@ namespace XpAndRepBot
         }
     }
 
+    public class HelpRewardsCommand : ICommand
+    {
+        public async Task ExecuteAsync(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken)
+        {
+            try
+            {
+                await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, replyToMessageId: update.Message.MessageId, text: Rewards, cancellationToken: cancellationToken);
+            }
+            catch
+            {
+                await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, text: Rewards, cancellationToken: cancellationToken);
+            }
+        }
+    }
+
     public class MeCommand : ICommand
     {
         public async Task ExecuteAsync(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken)
@@ -398,49 +413,6 @@ namespace XpAndRepBot
         }
     }
 
-    //public class VoteBanCommand : ICommand
-    //{
-    //    public async Task ExecuteAsync(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken)
-    //    {
-    //        if (update?.Message?.ReplyToMessage != null && !update.Message.ReplyToMessage.From.IsBot && update.Message.ReplyToMessage.From.Id != 777000)
-    //        {
-    //            var db = new InfoContext();
-    //            long userId1 = update.Message.ReplyToMessage.From.Id;
-    //            var user1 = db.TableUsers.First(x => x.Id == userId1);
-    //            long userId2 = update.Message.From.Id;
-    //            var user2 = db.TableUsers.First(x => x.Id == userId2);
-    //            var inlineKeyboard = new InlineKeyboardMarkup(new[]
-    //            {
-    //                new[]
-    //                {
-    //                    InlineKeyboardButton.WithCallbackData("Да ✅ - 0", $"y0_{userId1}"),
-    //                    InlineKeyboardButton.WithCallbackData("Нет ❌ - 0", $"n0_{userId1}"),
-    //                }
-    //            });
-    //            var chatMember = await botClient.GetChatMemberAsync(update.Message.Chat.Id, userId1, cancellationToken: cancellationToken);
-    //            if (chatMember.Status != ChatMemberStatus.Administrator && chatMember.Status != ChatMemberStatus.Creator)
-    //            {
-    //                try
-    //                {
-    //                    await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, replyToMessageId: update.Message.ReplyToMessage.MessageId, text: $"{user2.Name} начал голосование за бан {user1.Name}", replyMarkup: inlineKeyboard, cancellationToken: cancellationToken);
-    //                }
-    //                catch { }
-    //            }
-    //        }
-    //        else
-    //        {
-    //            try
-    //            {
-    //                await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, replyToMessageId: update.Message.MessageId, text: "Кого баним? Ответьте на сообщение пользователя. Воутбан можно начинать строго по правилам /r", cancellationToken: cancellationToken);
-    //            }
-    //            catch
-    //            {
-    //                await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, text: "Кого баним? Ответьте на сообщение пользователя. Воутбан можно начинать строго по правилам /r", cancellationToken: cancellationToken);
-    //            }
-    //        }
-    //    }
-    //}
-
     public class HelpAdminCommand : ICommand
     {
         public async Task ExecuteAsync(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken)
@@ -624,6 +596,9 @@ namespace XpAndRepBot
                         untilDate: muteDate,
                         cancellationToken: cancellationToken
                     );
+                    var userMute = db.TableUsers.FirstOrDefault(x => x.Id == update.Message.ReplyToMessage.From.Id);
+                    userMute.DateMute = muteDate;
+                    db.SaveChanges();
                     try
                     {
                         await botClient.SendTextMessageAsync(
@@ -685,17 +660,12 @@ namespace XpAndRepBot
             int mod100 = number % 100;
             if (mod100 >= 11 && mod100 <= 19)
                 return form5;
-            switch (mod10)
+            return mod10 switch
             {
-                case 1:
-                    return form1;
-                case 2:
-                case 3:
-                case 4:
-                    return form2;
-                default:
-                    return form5;
-            }
+                1 => form1,
+                2 or 3 or 4 => form2,
+                _ => form5,
+            };
         }
     }
 

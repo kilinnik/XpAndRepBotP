@@ -28,6 +28,7 @@ namespace XpAndRepBot
         public long Mariage { get; set; }
         public DateTime DateMariage { get; set; }
         public string Username { get; set; }
+        public DateTime DateMute { get; set; }
 
         public Users(long id, string name, int lvl, int curXp, int rep)
         {
@@ -46,6 +47,7 @@ namespace XpAndRepBot
             Mariage = 0;
             DateMariage = DateTime.ParseExact("1900-01-01 00:00:00.000", "yyyy-MM-dd HH:mm:ss.fff", System.Globalization.CultureInfo.InvariantCulture);
             Username = "";
+            DateMute = DateTime.ParseExact("1900-01-01 00:00:00.000", "yyyy-MM-dd HH:mm:ss.fff", System.Globalization.CultureInfo.InvariantCulture);
         }
     }
 

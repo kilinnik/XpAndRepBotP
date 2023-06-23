@@ -30,14 +30,3 @@ namespace XpAndRepBot
         }
     }
 }
-//var timer = new System.Timers.Timer { Interval = 1000 };
-//timer.Elapsed += async (sender, e) => await CheckTime();
-//timer.Start();
-//async Task CheckTime()
-//{
-//    var now = DateTime.Now;
-//    if (now.Hour == 2 && now.Minute == 0 && now.Second == 0) // Проверяем, что сейчас 2:00:00
-//    {
-//        await botClient.SendTextMessageAsync(-1001489033044, "Слеер душнила");
-//    }
-//}

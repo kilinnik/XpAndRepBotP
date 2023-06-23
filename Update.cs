@@ -14,8 +14,6 @@ using Telegram.Bot.Types.ReplyMarkups;
 using static XpAndRepBot.Consts;
 using System.Data;
 using System.IO;
-using System.Globalization;
-using System.Speech.Recognition;
 
 namespace XpAndRepBot
 {
@@ -53,7 +51,8 @@ namespace XpAndRepBot
             {"/warn", new WarnCommand() },
             {"/unwarn", new UnwarnCommand() },
             {"/unw", new UnwarnCommand() },
-            {"/mute", new MuteCommand() }
+            {"/mute", new MuteCommand() },
+            {"/rew", new HelpRewardsCommand() }
         };
 
         public async Task HandleUpdateAsync(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken)
@@ -96,19 +95,6 @@ namespace XpAndRepBot
                 {
                     ChatHandlers.NewMember(botClient, update, cancellationToken);
                 }
-                //var ids = db.TableUsers.Select(x => x.Id).ToList();
-                //for (int i = 0; i < db.TableUsers.Count(); i++)
-                //{
-                //    try
-                //    {
-                //        var chatMember = await botClient.GetChatMemberAsync(IgruhaChatID, ids[i]);
-                //        var user3 = db.TableUsers.First(x => x.Id == ids[i]);
-                //        var user2 = chatMember.User;
-                //        user3.Name = user2.FirstName + " " + user2.LastName;
-                //        db.SaveChanges();
-                //    }
-                //    catch { }
-                //}
                 //снятие варна 
                 if (user.Warns > 0)
                 {
@@ -130,30 +116,9 @@ namespace XpAndRepBot
                 }
                 //удаление гифок, стикеров и опросов
                 await ChatHandlers.Delete(botClient, update, user, cancellationToken);
-                if (update?.Message?.Text != null || update?.Message?.Caption != null)// || update?.Message?.Voice != null)
+                if (update?.Message?.Text != null || update?.Message?.Caption != null)
                 {
                     var mes = update.Message.Caption ?? update.Message.Text;
-                    //try
-                    //{
-                    //    if (update.Message.Voice != null)
-                    //    {
-                    //        var fileId = update.Message.Voice.FileId;
-                    //        var file = await botClient.GetFileAsync(fileId, cancellationToken: cancellationToken);
-                    //        using var stream = new MemoryStream();
-                    //        await botClient.DownloadFileAsync(file.FilePath, stream);
-                    //        var culture = new CultureInfo("ru-RU");
-                    //        var recognizerInfo = SpeechRecognitionEngine.InstalledRecognizers() .FirstOrDefault(r => r.Culture.Equals(culture));
-                    //        if (recognizerInfo == null) return;
-                    //        using var recognizer = new SpeechRecognitionEngine(recognizerInfo.Id);
-                    //        recognizer.SetInputToWaveStream(stream);
-                    //        recognizer.LoadGrammar(new DictationGrammar());
-                    //        recognizer.UpdateRecognizerSetting("CFGConfidenceRejectionThreshold", 50);
-                    //        var result = recognizer.Recognize();
-                    //        if (result != null) mes = result.Text;
-                    //        else mes = "";
-                    //    }
-                    //}
-                    //catch { return; }
                     //опыт
                     user.CurXp += mes.Length;
                     //повышение репутации
@@ -165,7 +130,7 @@ namespace XpAndRepBot
                         ChatHandlers.RequestChatGPT(botClient, update, mes, cancellationToken);
                     }
                     //заполнение таблицы лексикона
-                    await ChatHandlers.AddUserAndFillTable(user, mes);
+                    await ChatHandlers.AddWordsInLexicon(user, mes);
                     //повышение уровня
                     if (update.Message?.Chat?.Id != MID) await ChatHandlers.LvlUp(botClient, update, db, user, cancellationToken);
                     //команды
@@ -191,7 +156,7 @@ namespace XpAndRepBot
                         }
                         string[] messageWords = mes.Split(new char[] { ' ', ',', '.', '!', '?' }, StringSplitOptions.RemoveEmptyEntries);
                         bool containsWord = messageWords.Any(w => words.Contains(w.ToLower()));
-                        if (containsWord) botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, text: ChatHandlers.Nfc(user, db), cancellationToken: cancellationToken);
+                        if (containsWord) botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, text: await ChatHandlers.Nfc(user, db, botClient, cancellationToken), cancellationToken: cancellationToken);
                     }
                     if (user.LastMessage == mes)
                     {
@@ -209,53 +174,6 @@ namespace XpAndRepBot
         }
         public static async Task HandleCallbackQuery(ITelegramBotClient botClient, CallbackQuery callbackQuery, CancellationToken cancellationToken)
         {
-            var inlineKeyboard = new InlineKeyboardMarkup(new[]
-            {
-                new[]
-                {
-                    InlineKeyboardButton.WithCallbackData("", "")
-                }
-            });
-            var inlineKeyboardMW = new InlineKeyboardMarkup(new[]
-            {
-                new[]
-                {
-                    InlineKeyboardButton.WithCallbackData("Назад", "backmw"),
-                    InlineKeyboardButton.WithCallbackData("Вперёд", "nextmw"),
-                }
-            });
-            var inlineKeyboardTW = new InlineKeyboardMarkup(new[]
-            {
-                new[]
-                {
-                    InlineKeyboardButton.WithCallbackData("Назад", "backtw"),
-                    InlineKeyboardButton.WithCallbackData("Вперёд", "nexttw"),
-                }
-            });
-            var inlineKeyboardTL = new InlineKeyboardMarkup(new[]
-           {
-                new[]
-                {
-                    InlineKeyboardButton.WithCallbackData("Назад", "backtl"),
-                    InlineKeyboardButton.WithCallbackData("Вперёд", "nexttl"),
-                }
-            });
-            var inlineKeyboardTR = new InlineKeyboardMarkup(new[]
-           {
-                new[]
-                {
-                    InlineKeyboardButton.WithCallbackData("Назад", "backtr"),
-                    InlineKeyboardButton.WithCallbackData("Вперёд", "nexttr"),
-                }
-            });
-            var inlineKeyboardL = new InlineKeyboardMarkup(new[]
-            {
-                new[]
-                {
-                    InlineKeyboardButton.WithCallbackData("Назад", "backl"),
-                    InlineKeyboardButton.WithCallbackData("Вперёд", "nextl"),
-                }
-            });
             var option = callbackQuery.Data;
             var messageId = callbackQuery.Message.MessageId;
             var chatId = callbackQuery.Message.Chat.Id;
@@ -264,6 +182,7 @@ namespace XpAndRepBot
             Match match;
             try
             {
+                InlineKeyboardMarkup inlineKeyboard;
                 switch (option)
                 {
                     case "backmw":
@@ -273,68 +192,133 @@ namespace XpAndRepBot
                             number = int.Parse(match.Value);
                             if (number > 10) newText = await ResponseHandlers.MeWords(callbackQuery, -10);
                         }
-                        inlineKeyboard = inlineKeyboardMW;
+                        inlineKeyboard = new InlineKeyboardMarkup(new[]
+                        {
+                            new[]
+                            {
+                                InlineKeyboardButton.WithCallbackData("Назад", "backmw"),
+                                InlineKeyboardButton.WithCallbackData("Вперёд", "nextmw"),
+                            }
+                        });
                         break;
                     case "nextmw":
                         newText = await ResponseHandlers.MeWords(callbackQuery, 10);
-                        inlineKeyboard = inlineKeyboardMW;
+                        inlineKeyboard = new InlineKeyboardMarkup(new[]
+                        {
+                            new[]
+                            {
+                                InlineKeyboardButton.WithCallbackData("Назад", "backmw"),
+                                InlineKeyboardButton.WithCallbackData("Вперёд", "nextmw"),
+                            }
+                        });
                         break;
                     case "backtw":
                         match = Regex.Match(callbackQuery.Message.Text, @"\n\d+", RegexOptions.Multiline);
                         number = int.Parse(match.Value);
                         if (number > 50) newText = await ResponseHandlers.TopWords(number - 51);
-                        inlineKeyboard = inlineKeyboardTW;
+                        inlineKeyboard = new InlineKeyboardMarkup(new[]
+                        {
+                            new[]
+                            {
+                                InlineKeyboardButton.WithCallbackData("Назад", "backtw"),
+                                InlineKeyboardButton.WithCallbackData("Вперёд", "nexttw"),
+                            }
+                        });
                         break;
                     case "nexttw":
                         match = Regex.Match(callbackQuery.Message.Text, @"\n\d+", RegexOptions.Multiline);
                         newText = await ResponseHandlers.TopWords(int.Parse(match.Value) + 49);
-                        inlineKeyboard = inlineKeyboardTW;
+                        inlineKeyboard = new InlineKeyboardMarkup(new[]
+                        {
+                            new[]
+                            {
+                                InlineKeyboardButton.WithCallbackData("Назад", "backtw"),
+                                InlineKeyboardButton.WithCallbackData("Вперёд", "nexttw"),
+                            }
+                        });
                         break;
                     case "backtl":
                         match = Regex.Match(callbackQuery.Message.Text, @"\n\d+", RegexOptions.Multiline);
                         number = int.Parse(match.Value);
                         if (number > 50) newText = ResponseHandlers.TopLvl(number - 51);
-                        inlineKeyboard = inlineKeyboardTL;
+                        inlineKeyboard = new InlineKeyboardMarkup(new[]
+                        {
+                            new[]
+                            {
+                                InlineKeyboardButton.WithCallbackData("Назад", "backtl"),
+                                InlineKeyboardButton.WithCallbackData("Вперёд", "nexttl"),
+                            }
+                        });
                         break;
                     case "nexttl":
                         match = Regex.Match(callbackQuery.Message.Text, @"\n\d+", RegexOptions.Multiline);
                         newText = ResponseHandlers.TopLvl(int.Parse(match.Value) + 49);
-                        inlineKeyboard = inlineKeyboardTL;
+                        inlineKeyboard = new InlineKeyboardMarkup(new[]
+                        {
+                            new[]
+                            {
+                                InlineKeyboardButton.WithCallbackData("Назад", "backtl"),
+                                InlineKeyboardButton.WithCallbackData("Вперёд", "nexttl"),
+                            }
+                        });
                         break;
                     case "backtr":
                         match = Regex.Match(callbackQuery.Message.Text, @"\n\d+", RegexOptions.Multiline);
                         number = int.Parse(match.Value);
                         if (number > 50) newText = ResponseHandlers.TopRep(number - 51);
-                        inlineKeyboard = inlineKeyboardTR;
+                        inlineKeyboard = new InlineKeyboardMarkup(new[]
+                        {
+                            new[]
+                            {
+                                InlineKeyboardButton.WithCallbackData("Назад", "backtr"),
+                                InlineKeyboardButton.WithCallbackData("Вперёд", "nexttr"),
+                            }
+                        });
                         break;
                     case "nexttr":
                         match = Regex.Match(callbackQuery.Message.Text, @"\n\d+", RegexOptions.Multiline);
                         newText = ResponseHandlers.TopRep(int.Parse(match.Value) + 49);
-                        inlineKeyboard = inlineKeyboardTR;
+                        inlineKeyboard = new InlineKeyboardMarkup(new[]
+                        {
+                            new[]
+                            {
+                                InlineKeyboardButton.WithCallbackData("Назад", "backtr"),
+                                InlineKeyboardButton.WithCallbackData("Вперёд", "nexttr"),
+                            }
+                        });
                         break;
                     case "backl":
                         match = Regex.Match(callbackQuery.Message.Text, @"\n\d+", RegexOptions.Multiline);
                         number = int.Parse(match.Value);
                         if (number > 50) newText = await ResponseHandlers.TopLexicon(number - 51);
-                        inlineKeyboard = inlineKeyboardL;
+                        inlineKeyboard = new InlineKeyboardMarkup(new[]
+                        {
+                            new[]
+                            {
+                                InlineKeyboardButton.WithCallbackData("Назад", "backl"),
+                                InlineKeyboardButton.WithCallbackData("Вперёд", "nextl"),
+                            }
+                        });
                         break;
                     case "nextl":
                         match = Regex.Match(callbackQuery.Message.Text, @"\n\d+", RegexOptions.Multiline);
                         newText = await ResponseHandlers.TopLexicon(int.Parse(match.Value) + 49);
-                        inlineKeyboard = inlineKeyboardL;
+                        inlineKeyboard = new InlineKeyboardMarkup(new[]
+                        {
+                            new[]
+                            {
+                                InlineKeyboardButton.WithCallbackData("Назад", "backl"),
+                                InlineKeyboardButton.WithCallbackData("Вперёд", "nextl"),
+                            }
+                        });
                         break;
                     default:
                         var userId = callbackQuery.Message.ReplyToMessage.From.Id;
                         newText = callbackQuery.Message.Text;
-                        string text = null;
                         if (option[0] == 'm')
                         {
                             inlineKeyboard = await ResponseHandlers.AcceptMariage(option, callbackQuery, botClient, chatId, userId, cancellationToken);
                         }
-                        //else if (option[0] == 'y' || option[0] == 'n')
-                        //{
-                        //    inlineKeyboard = await ResponseHandlers.VoteBan(inlineKeyboard, callbackQuery, option, chatId, botClient, cancellationToken, userId);
-                        //}
                         else
                         {
                             var flag = await ResponseHandlers.GetChatPermissions(option, callbackQuery, botClient, chatId, cancellationToken);

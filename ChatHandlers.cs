@@ -32,12 +32,10 @@ namespace XpAndRepBot
         {
             if (mes.Contains("@XpAndRepBot") || (update.Message?.Chat?.Id == MID && update.Message.ReplyToMessage == null) || (update.Message?.Chat?.Id == IID && update.Message.ReplyToMessage == null))
             {
-                Program.Context.Add(update.Message.MessageId, new MessageEntry[1000]);
+                Program.Context.Add(update.Message.MessageId, new MessageEntry[100]);
                 Program.ListBranches.Add(new List<int>() { update.Message.MessageId });
             }
-            if (update?.Message?.ReplyToMessage?.From?.Id != 5759112130) mes = mes.Replace("@XpAndRepBot", "");
-            //mes = mes.Replace("\"", "");
-            //mes = mes.Replace("\n", " ");
+            mes = mes.Replace("@XpAndRepBot", "");
             if (mes.Any(x => char.IsLetter(x)) || mes.Any(x => char.IsNumber(x)) || mes.Any(x => char.IsPunctuation(x)))
             {
                 var id = update.Message.MessageId;
@@ -51,10 +49,7 @@ namespace XpAndRepBot
                         number = int.Parse(match.Value);
                     }
                     List<int> targetList = Program.ListBranches.Find(list => list.Contains(number));
-                    if (targetList != null)
-                    {
-                        targetList.Add(update.Message.MessageId);
-                    }
+                    targetList?.Add(update.Message.MessageId);
                     if (targetList != null && targetList.Count > 0)
                     {
                         id = targetList[0];
@@ -89,10 +84,12 @@ namespace XpAndRepBot
 
         public static async Task NewMember(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken)
         {
+            using var db = new InfoContext();
             var newMembers = update.Message.NewChatMembers;
             foreach (var member in newMembers)
             {
-                if (!member.IsBot)
+                var userMute = db.TableUsers.FirstOrDefault(x => x.Id == member.Id);
+                if (!member.IsBot && DateTime.Now >= userMute.DateMute)
                 {
                     Random random = new();
                     int[] array = new int[8];
@@ -145,26 +142,26 @@ namespace XpAndRepBot
             try
             {
                 var flag = update.Message.MessageId % 10 == 0;
-                if (update.Message.ReplyToMessage?.From.Id == 777000 && ForbiddenWords.Any(s => (bool)(update.Message.Text?.ToLower().Contains(s))))
+                if (update.Message.ReplyToMessage?.From.Id == 777000 && ForbiddenWords.Any(s => (bool)(update.Message.Text?.ToLower().Contains(s)))) //удаление запрещённых слов
                 {
                     await botClient.DeleteMessageAsync(update.Message.Chat.Id, update.Message.MessageId, cancellationToken);
                 }
-                if (update?.Message?.Animation != null && user.Lvl < 10) //удаление гифок
+                else if (update?.Message?.Animation != null && user.Lvl < 10) //удаление гифок
                 {
                     if (flag) await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, replyToMessageId: update.Message.MessageId, text: "Гифки с 10 лвла.\n/m - посмотреть свой лвл", cancellationToken: cancellationToken);
                     await botClient.DeleteMessageAsync(update.Message.Chat.Id, update.Message.MessageId, cancellationToken);
                 }
-                if (update?.Message?.Sticker != null && user.Lvl < 15) //удаление стикеров
+                else if (update?.Message?.Sticker != null && user.Lvl < 15) //удаление стикеров
                 {
                     var sticker = update.Message.Sticker;
                     var set = await botClient.GetStickerSetAsync(sticker.SetName, cancellationToken: cancellationToken);
-                    if (set.Name != "UnoWarStickers")
+                    if (set.Name != "UnoWarStickers" && set.Name != "UsedWorm_by_fStikBot")
                     {
-                        if (flag) await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, replyToMessageId: update.Message.MessageId, text: "Стикеры с 15 лвла, только стикеры для Уно с любого лвла.\n/m - посмотреть свой лвл", cancellationToken: cancellationToken);
+                        if (flag) await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, replyToMessageId: update.Message.MessageId, text: "Стикеры с 15 лвла, кроме стикеров чата и Уно.\n/m - посмотреть свой лвл", cancellationToken: cancellationToken);
                         await botClient.DeleteMessageAsync(update.Message.Chat.Id, update.Message.MessageId, cancellationToken);
                     }
                 }
-                if (update?.Message?.Poll != null && user.Lvl < 20) //удаление опросов
+                else if (update?.Message?.Poll != null && user.Lvl < 20) //удаление опросов
                 {
                     if (flag) await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, replyToMessageId: update.Message.MessageId, text: "Опросы с 20 лвла.\n/m - посмотреть свой лвл", cancellationToken: cancellationToken);
                     await botClient.DeleteMessageAsync(update.Message.Chat.Id, update.Message.MessageId, cancellationToken);
@@ -173,7 +170,7 @@ namespace XpAndRepBot
             catch { }
         }
 
-        public static async Task AddUserAndFillTable(Users user, string mes)
+        public static async Task AddWordsInLexicon(Users user, string mes)
         {
             using SqlConnection connection = new(ConStringDbLexicon);
             await connection.OpenAsync();
@@ -216,13 +213,34 @@ namespace XpAndRepBot
             botClient.SendTextMessageAsync(chatId: chatId, text: res, parseMode: ParseMode.Html, cancellationToken: cancellationToken);
         }
 
-        public static string Nfc(Users user, DbContext db)
+        public static async Task<string> Nfc(Users user, DbContext db, ITelegramBotClient botClient, CancellationToken cancellationToken)
         {
             user.Nfc = false;
             TimeSpan ts = DateTime.Now - user.StartNfc;
             if (ts.Ticks > user.BestTime) user.BestTime = ts.Ticks;
             db.SaveChanges();
             string t = string.Format("{0} d, {1} h, {2} m.", ts.Days, ts.Hours, ts.Minutes);
+            DateTime muteDate = DateTime.Now.AddMinutes(15);
+            try
+            {
+                await botClient.RestrictChatMemberAsync(
+                    chatId: IgruhaChatID,
+                    userId: user.Id,
+                    new ChatPermissions
+                    {
+                        CanSendMessages = false,
+                        CanSendMediaMessages = false
+                    },
+                    untilDate: muteDate,
+                    cancellationToken: cancellationToken
+                );
+                await botClient.SendTextMessageAsync(
+                    chatId: IgruhaChatID,
+                    text: $"{user.Name} получил мут на 15 минут до {muteDate:dd.MM.yyyy HH:mm}",
+                    cancellationToken: cancellationToken
+                );
+            }
+            catch { }
             return $"{user.Name} нарушил условия no fuck challenge. Время: {t}";
         }
     }

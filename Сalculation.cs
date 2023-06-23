@@ -41,7 +41,7 @@ namespace XpAndRepBot
 
         public static int Genlvl(int x)
         {          
-            return xplvl[x];
+            return XpForLvlUp[x];
         }
     }
 }

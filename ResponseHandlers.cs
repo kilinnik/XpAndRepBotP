@@ -25,7 +25,6 @@ using System.Threading;
 using Telegram.Bot.Types.ReplyMarkups;
 using Telegram.Bot;
 using SixLabors.ImageSharp;
-using System.Diagnostics.Metrics;
 
 namespace XpAndRepBot
 {
@@ -173,6 +172,7 @@ namespace XpAndRepBot
             reader.Close();
             return result.ToString();
         }
+
         public static async Task<string> PersonalWord(long id, string word)
         {
             using var db = new InfoContext();
@@ -262,7 +262,6 @@ namespace XpAndRepBot
                 if (imageResult.Successful)
                 {
                     string imageUrl = string.Join("\n", imageResult.Results.Select(r => r.Url));
-
                     using WebClient webClient = new();
                     byte[] imageBytes = webClient.DownloadData(imageUrl);
                     using var ms = new MemoryStream(imageBytes);
@@ -360,60 +359,6 @@ namespace XpAndRepBot
                 res += $"{i + 1} || {usersWithNfc[i].Name}: {ts.Days} d, {ts.Hours} h, {ts.Minutes} m.\n";
             }
             return res;
-        }
-
-        public static async Task<InlineKeyboardMarkup> VoteBan(InlineKeyboardMarkup inlineKeyboard, CallbackQuery callbackQuery, string option, ChatId chatId, ITelegramBotClient botClient, CancellationToken cancellationToken, long userId)
-        {
-            string pattern = @"\d+";
-            Match match = Regex.Match(option, pattern);
-            var count = int.Parse(match.Value);
-            inlineKeyboard = callbackQuery.Message.ReplyMarkup;
-            if (option[0] == 'y')
-            {
-                if (!option.Contains(callbackQuery.From.Id.ToString()) && !inlineKeyboard.InlineKeyboard.Last().Last().CallbackData.Contains(callbackQuery.From.Id.ToString()))
-                {
-                    await botClient.SendTextMessageAsync(chatId: chatId, replyToMessageId: callbackQuery.Message.MessageId, text: $"{callbackQuery.From.FirstName} {callbackQuery.From.LastName} проголосовал за", cancellationToken: cancellationToken);
-                    Regex regex = new(pattern);
-                    count++;
-                    option = regex.Replace(option, count.ToString(), 1);
-                    option += $"_{callbackQuery.From.Id}";
-                    var mes = $"Да ✅ - {count}";
-                    inlineKeyboard.InlineKeyboard.First().First().Text = mes;
-                    inlineKeyboard.InlineKeyboard.First().First().CallbackData = option;
-                    match = Regex.Match(inlineKeyboard.InlineKeyboard.Last().Last().Text, pattern);
-                    var count2 = int.Parse(match.Value);
-                    if (count >= 5 && count2 < count)
-                    {
-                        var db = new InfoContext();
-                        var user = db.TableUsers.First(x => x.Id == userId);
-                        await botClient.BanChatMemberAsync(chatId: chatId, userId: userId, cancellationToken: cancellationToken);
-                        inlineKeyboard = null;
-                        await botClient.SendTextMessageAsync(chatId: chatId, replyToMessageId: callbackQuery.Message.MessageId, text: $"{user.Name} забанен", cancellationToken: cancellationToken);
-                    }
-                    else if (count2 >= 5 && count2 >= count)
-                    {
-                        inlineKeyboard = null;
-                        var db = new InfoContext();
-                        var user = db.TableUsers.First(x => x.Id == userId);
-                        await botClient.SendTextMessageAsync(chatId: chatId, replyToMessageId: callbackQuery.Message.MessageId, text: $"{user.Name} не забанен", cancellationToken: cancellationToken);
-                    }
-                }
-            }
-            else
-            {
-                if (!option.Contains(callbackQuery.From.Id.ToString()) && !inlineKeyboard.InlineKeyboard.First().First().CallbackData.Contains(callbackQuery.From.Id.ToString()))
-                {
-                    await botClient.SendTextMessageAsync(chatId: chatId, replyToMessageId: callbackQuery.Message.MessageId, text: $"{callbackQuery.From.FirstName} {callbackQuery.From.LastName} проголосовал против", cancellationToken: cancellationToken);
-                    Regex regex = new(pattern);
-                    count++;
-                    option = regex.Replace(option, count.ToString(), 1);
-                    option += $"_{callbackQuery.From.Id}";
-                    var mes = $"Нет ❌ - {count}";
-                    inlineKeyboard.InlineKeyboard.Last().Last().Text = mes;
-                    inlineKeyboard.InlineKeyboard.Last().Last().CallbackData = option;
-                }
-            }
-            return inlineKeyboard;
         }
 
         public static string Mariages()
