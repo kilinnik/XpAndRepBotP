@@ -3,19 +3,19 @@ using System.Threading.Tasks;
 using System.Threading;
 using Telegram.Bot;
 using Telegram.Bot.Extensions.Polling;
-using XpAndRepBot;
 using Mirror.ChatGpt.Models.ChatGpt;
 using System.Collections.Generic;
 
 namespace XpAndRepBot
 {
-    public class Program
+    public static class Program
     {
         public static Dictionary<int, MessageEntry[]> Context = new();
         public static List<List<int>> ListBranches = new();
-        static async Task Main()
+
+        private static async Task Main()
         {
-            var botClient = new TelegramBotClient(Consts.TgAPIKey);
+            var botClient = new TelegramBotClient(Consts.TgApiKey);
             
             var cts = new CancellationTokenSource();
             Console.CancelKeyPress += (_, _) => cts.Cancel();

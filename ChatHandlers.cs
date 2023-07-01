@@ -19,18 +19,18 @@ namespace XpAndRepBot
     {
         public static async Task LvlUp(ITelegramBotClient botClient, Update update, InfoContext db, Users user, CancellationToken cancellationToken)
         {
-            while (user.CurXp >= Сalculation.Genlvl(user.Lvl + 1))
+            while (user.CurXp >= Сalculation.GenerateXpForLevel(user.Lvl + 1))
             {
                 user.Lvl++;
-                user.CurXp -= Сalculation.Genlvl(user.Lvl);
+                user.CurXp -= Сalculation.GenerateXpForLevel(user.Lvl);
                 if (user.Lvl > 4) await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, text: $"{user.Name} получает {user.Lvl} lvl", cancellationToken: cancellationToken);
             }
             db.SaveChanges();
         }
 
-        public static async Task RequestChatGPT(ITelegramBotClient botClient, Update update, string mes, CancellationToken cancellationToken)
+        public static async Task RequestChatGpt(ITelegramBotClient botClient, Update update, string mes, CancellationToken cancellationToken)
         {
-            if (mes.Contains("@XpAndRepBot") || (update.Message?.Chat?.Id == MID && update.Message.ReplyToMessage == null) || (update.Message?.Chat?.Id == IID && update.Message.ReplyToMessage == null))
+            if (mes.Contains("@XpAndRepBot") || (update.Message?.Chat?.Id == Mid && update.Message.ReplyToMessage == null) || (update.Message?.Chat?.Id == Iid && update.Message.ReplyToMessage == null))
             {
                 Program.Context.Add(update.Message.MessageId, new MessageEntry[100]);
                 Program.ListBranches.Add(new List<int>() { update.Message.MessageId });
@@ -42,23 +42,23 @@ namespace XpAndRepBot
                 if (update.Message.ReplyToMessage != null)
                 {
                     Regex regex = new(@"\b\d+\b$");
-                    Match match = regex.Match(update.Message.ReplyToMessage.Text);
-                    int number = 0;
+                    var match = regex.Match(update.Message.ReplyToMessage.Text);
+                    var number = 0;
                     if (match.Success)
                     {
                         number = int.Parse(match.Value);
                     }
-                    List<int> targetList = Program.ListBranches.Find(list => list.Contains(number));
+                    var targetList = Program.ListBranches.Find(list => list.Contains(number));
                     targetList?.Add(update.Message.MessageId);
                     if (targetList != null && targetList.Count > 0)
                     {
                         id = targetList[0];
                     }
                 }
-                MessageEntry[] subArray = new MessageEntry[1];
-                if (Program.Context.TryGetValue(id, out MessageEntry[] array))
+                var subArray = new MessageEntry[1];
+                if (Program.Context.TryGetValue(id, out var array))
                 {
-                    int index = Array.IndexOf(array, null);
+                    var index = Array.IndexOf(array, null);
                     array[index] = new MessageEntry { Role = Roles.User, Content = mes };
                     Program.Context[id] = array;
                     subArray = new ArraySegment<MessageEntry>(array, 0, index + 1).ToArray();
@@ -70,11 +70,11 @@ namespace XpAndRepBot
                     {
                         try
                         {
-                            await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, replyToMessageId: update.Message.MessageId, text: await ResponseHandlers.RequestChatGPT(id, subArray), cancellationToken: cancellationToken);
+                            await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, replyToMessageId: update.Message.MessageId, text: await ResponseHandlers.RequestChatGpt(id, subArray), cancellationToken: cancellationToken);
                         }
                         catch
                         {
-                            await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, text: await ResponseHandlers.RequestChatGPT(id, subArray), cancellationToken: cancellationToken);
+                            await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, text: await ResponseHandlers.RequestChatGpt(id, subArray), cancellationToken: cancellationToken);
                         }
                     }
                     catch { await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, text: "Произошла ошибка. Попробуйте повторить запрос. Чтобы начать новую ветку, упомяните бота. Чтобы продолжить ветку, ответьте на сообщение от бота, где есть число в конце", cancellationToken: cancellationToken); }
@@ -92,20 +92,20 @@ namespace XpAndRepBot
                 if (!member.IsBot && DateTime.Now >= userMute.DateMute)
                 {
                     Random random = new();
-                    int[] array = new int[8];
-                    for (int i = 0; i < array.Length; i++)
+                    var array = new int[8];
+                    for (var i = 0; i < array.Length; i++)
                     {
                         array[i] = i;
                     }
-                    for (int i = 0; i < array.Length; i++)
+                    for (var i = 0; i < array.Length; i++)
                     {
-                        int randomIndex = random.Next(i, array.Length);
+                        var randomIndex = random.Next(i, array.Length);
                         (array[randomIndex], array[i]) = (array[i], array[randomIndex]);
                     }
-                    int randomNumber = random.Next(0, 8);
-                    InlineKeyboardButton[][] buttons = new InlineKeyboardButton[1][];
+                    var randomNumber = random.Next(0, 8);
+                    var buttons = new InlineKeyboardButton[1][];
                     buttons[0] = new InlineKeyboardButton[array.Length];
-                    for (int i = 0; i < array.Length; i++)
+                    for (var i = 0; i < array.Length; i++)
                     {
                         if (array[i] != randomNumber) buttons[0][i] = InlineKeyboardButton.WithCallbackData(array[i].ToString(), $"{array[i]}n{member.Id}");
                         else buttons[0][i] = InlineKeyboardButton.WithCallbackData(array[i].ToString(), $"{array[i]}y{member.Id}");
@@ -176,9 +176,9 @@ namespace XpAndRepBot
             await connection.OpenAsync();
             var listWords = mes.Split(new string[] { " ", "\r\n", "\n" }, StringSplitOptions.None);
             List<string> validWords = new();
-            for (int i = 0; i < listWords.Length; i++)
+            for (var i = 0; i < listWords.Length; i++)
             {
-                string cleanedWord = Regex.Replace(listWords[i], @"[^\w\d\s]", "");
+                var cleanedWord = Regex.Replace(listWords[i], @"[^\w\d\s]", "");
                 if (string.IsNullOrWhiteSpace(cleanedWord)) continue;
                 cleanedWord = cleanedWord.ToLower();
                 validWords.Add(cleanedWord);
@@ -186,7 +186,7 @@ namespace XpAndRepBot
             foreach (var word in validWords)
             {
                 SqlCommand updateCommand = new($"update dbo.TableUsersLexicons set [Count] = [Count] + 1 where [Word] = '{word}' and [UserID] = {user.Id}", connection);
-                int rowsAffected = await updateCommand.ExecuteNonQueryAsync();
+                var rowsAffected = await updateCommand.ExecuteNonQueryAsync();
                 if (rowsAffected == 0)
                 {
                     SqlCommand insertCommand = new($"insert into dbo.TableUsersLexicons (UserID, Word, Count) values ({user.Id}, '{word}', 1)", connection);
@@ -197,10 +197,10 @@ namespace XpAndRepBot
 
         public static void Mention(List<Users> users, string name, long chatId, ITelegramBotClient botClient, CancellationToken cancellationToken)
         {
-            string res = $"{name} призывает ";
+            var res = $"{name} призывает ";
             using var db = new InfoContext();
             var count = users.Count - 1;
-            for (int i = 0; i < count; i++)
+            for (var i = 0; i < count; i++)
             {
                 res += $"<a href=\"tg://user?id={users[i].Id}\">{users[i].Name}</a> ";
                 if ((i + 1) % 5 == 0)
@@ -216,15 +216,15 @@ namespace XpAndRepBot
         public static async Task<string> Nfc(Users user, DbContext db, ITelegramBotClient botClient, CancellationToken cancellationToken)
         {
             user.Nfc = false;
-            TimeSpan ts = DateTime.Now - user.StartNfc;
+            var ts = DateTime.Now - user.StartNfc;
             if (ts.Ticks > user.BestTime) user.BestTime = ts.Ticks;
             db.SaveChanges();
-            string t = string.Format("{0} d, {1} h, {2} m.", ts.Days, ts.Hours, ts.Minutes);
-            DateTime muteDate = DateTime.Now.AddMinutes(15);
+            var t = string.Format("{0} d, {1} h, {2} m.", ts.Days, ts.Hours, ts.Minutes);
+            var muteDate = DateTime.Now.AddMinutes(15);
             try
             {
                 await botClient.RestrictChatMemberAsync(
-                    chatId: IgruhaChatID,
+                    chatId: IgruhaChatId,
                     userId: user.Id,
                     new ChatPermissions
                     {
@@ -235,7 +235,7 @@ namespace XpAndRepBot
                     cancellationToken: cancellationToken
                 );
                 await botClient.SendTextMessageAsync(
-                    chatId: IgruhaChatID,
+                    chatId: IgruhaChatId,
                     text: $"{user.Name} получил мут на 15 минут до {muteDate:dd.MM.yyyy HH:mm}",
                     cancellationToken: cancellationToken
                 );

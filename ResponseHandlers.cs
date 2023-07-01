@@ -34,11 +34,11 @@ namespace XpAndRepBot
         {
             using var db = new InfoContext();
             var user = db.TableUsers.First(x => x.Id == idUser);
-            var result = new StringBuilder($"👨‍❤️‍👨 Имя: {user.Name}\n🕰 Время последнего сообщения: {user.TimeLastMes:yy/MM/dd HH:mm:ss}\n⭐️ Lvl: {user.Lvl}({user.CurXp}/{Сalculation.Genlvl(user.Lvl + 1)})\n🎭 Роли: {user.Roles}\n🏆 Место в топе по уровню: {Сalculation.PlaceLvl(user.Id, db.TableUsers)}\n😇 Rep: {user.Rep}\n🥇 Место в топе по репутации: {Сalculation.PlaceRep(user.Id, db.TableUsers)}\n🎖 Место в топе по лексикону: {await Сalculation.PlaceLexicon(user)}\n🤬 Кол-во варнов: {user.Warns}/3\n🗓 Дата последнего варна/снятия варна: {user.LastTime:yyyy-MM-dd}\n");
+            var result = new StringBuilder($"👨‍❤️‍👨 Имя: {user.Name}\n🕰 Время последнего сообщения: {user.TimeLastMes:yy/MM/dd HH:mm:ss}\n⭐️ Lvl: {user.Lvl}({user.CurXp}/{Сalculation.GenerateXpForLevel(user.Lvl + 1)})\n🎭 Роли: {user.Roles}\n🏆 Место в топе по уровню: {Сalculation.PlaceLvl(user.Id, db.TableUsers)}\n😇 Rep: {user.Rep}\n🥇 Место в топе по репутации: {Сalculation.PlaceRep(user.Id, db.TableUsers)}\n🎖 Место в топе по лексикону: {await Сalculation.PlaceLexicon(user)}\n🤬 Кол-во варнов: {user.Warns}/3\n🗓 Дата последнего варна/снятия варна: {user.LastTime:yyyy-MM-dd}\n");
             using var connection = new SqlConnection(ConStringDbLexicon);
             await connection.OpenAsync();
             using var command = new SqlCommand($"SELECT COUNT(*) FROM dbo.TableUsersLexicons where [UserID] = {user.Id}", connection);
-            int count = (int)await command.ExecuteScalarAsync();
+            var count = (int)await command.ExecuteScalarAsync();
             result.AppendLine($"🔤 Лексикон: {count} слов");
             result.AppendLine("📖 Личный топ слов:");
             using var command2 = new SqlCommand($"select top 10 * from dbo.TableUsersLexicons where [UserID] = {user.Id} order by [Count] desc", connection);
@@ -53,7 +53,7 @@ namespace XpAndRepBot
                 };
                 words.Add(word);
             }
-            for (int i = 0; i < words.Count; i++)
+            for (var i = 0; i < words.Count; i++)
             {
                 result.AppendLine($"{Keycaps[i]} {words[i].Word} || {words[i].Count}");
             }
@@ -86,10 +86,10 @@ namespace XpAndRepBot
             var users = db.TableUsers.OrderByDescending(x => x.Lvl).ThenByDescending(y => y.CurXp).Skip(number).Take(50);
             StringBuilder sb = new();
             sb.Append("🏆 \n");
-            int i = number + 1;
+            var i = number + 1;
             foreach (var user in users)
             {
-                sb.AppendLine($"{i}. {user.Name} lvl {user.Lvl}({user.CurXp}/{Сalculation.Genlvl(user.Lvl + 1)})");
+                sb.AppendLine($"{i}. {user.Name} lvl {user.Lvl}({user.CurXp}/{Сalculation.GenerateXpForLevel(user.Lvl + 1)})");
                 i++;
             }
             return sb.ToString();
@@ -100,7 +100,7 @@ namespace XpAndRepBot
             using var db = new InfoContext();
             var users = db.TableUsers.OrderByDescending(x => x.Rep).Skip(number).Take(50);
             var resultBuilder = new StringBuilder("🥇 \n");
-            int i = number + 1;
+            var i = number + 1;
             foreach (var user in users)
             {
                 resultBuilder.AppendLine($"{i}. {user.Name} rep {user.Rep}");
@@ -114,10 +114,10 @@ namespace XpAndRepBot
             using var db = new InfoContext();
             var idUser = callbackQuery.Message.ReplyToMessage.From.Id;
             var user = db.TableUsers.First(x => x.Id == idUser);
-            Match match = Regex.Match(callbackQuery.Message.Text, @"^\d+");
+            var match = Regex.Match(callbackQuery.Message.Text, @"^\d+");
 
             var words = new List<Words>();
-            int i = 0;
+            var i = 0;
             var offset = 10;
 
             if (match.Success)
@@ -147,7 +147,7 @@ namespace XpAndRepBot
             using SqlConnection connection = new(ConStringDbLexicon);
             await connection.OpenAsync();
             SqlCommand command = new($"SELECT ROW_NUMBER() OVER (ORDER BY SUM([Count]) DESC) AS RowNumber, [Word], SUM([Count]) AS WordCount FROM dbo.TableUsersLexicons GROUP BY [Word] order by [WordCount] desc OFFSET {number} ROWS FETCH NEXT 50 ROWS ONLY", connection);
-            SqlDataReader reader = await command.ExecuteReaderAsync();
+            var reader = await command.ExecuteReaderAsync();
             var result = new StringBuilder("📖 Топ слов:\n");
             while (await reader.ReadAsync())
             {
@@ -162,7 +162,7 @@ namespace XpAndRepBot
             using SqlConnection connection = new(ConStringDbLexicon);
             await connection.OpenAsync();
             SqlCommand command = new($"SELECT ROW_NUMBER() OVER (ORDER BY COUNT(*) DESC) AS RowNumber, UserID, COUNT(*) AS UserCount FROM dbo.TableUsersLexicons GROUP BY UserID ORDER BY UserCount desc OFFSET {number} ROWS FETCH NEXT 50 ROWS ONLY", connection);
-            SqlDataReader reader = await command.ExecuteReaderAsync();
+            var reader = await command.ExecuteReaderAsync();
             var result = new StringBuilder("🎖 Топ по лексикону:\n");
             using var db = new InfoContext();
             while (await reader.ReadAsync())
@@ -180,7 +180,7 @@ namespace XpAndRepBot
             using var connection = new SqlConnection(ConStringDbLexicon);
             await connection.OpenAsync();
             SqlCommand command = new($"select * from ( SELECT ROW_NUMBER() OVER (ORDER BY SUM([Count]) DESC) AS RowNumber, [Word], SUM([Count]) AS WordCount FROM dbo.TableUsersLexicons where [UserID] = {id} GROUP BY [Word]) as T where Word = '{word}'", connection);
-            SqlDataReader reader = await command.ExecuteReaderAsync();
+            var reader = await command.ExecuteReaderAsync();
             var result = "";
             while (await reader.ReadAsync())
             {
@@ -196,7 +196,7 @@ namespace XpAndRepBot
             using SqlConnection connection = new(ConStringDbLexicon);
             await connection.OpenAsync();
             SqlCommand command = new($"select * from ( SELECT ROW_NUMBER() OVER (ORDER BY SUM([Count]) DESC) AS RowNumber, [Word], SUM([Count]) AS WordCount FROM dbo.TableUsersLexicons GROUP BY [Word]) as T where Word = '{word}'", connection);
-            SqlDataReader reader = await command.ExecuteReaderAsync();
+            var reader = await command.ExecuteReaderAsync();
             var result = "";
             while (await reader.ReadAsync())
             {
@@ -226,10 +226,10 @@ namespace XpAndRepBot
             return "";
         }
 
-        public static async Task<string> RequestChatGPT(int id, MessageEntry[] messages)
+        public static async Task<string> RequestChatGpt(int id, MessageEntry[] messages)
         {
             var services = new ServiceCollection();
-            services.AddChatGptClient(new() { ApiKey = SSHKey });
+            services.AddChatGptClient(new() { ApiKey = SshKey });
             var app = services.BuildServiceProvider();
             var service = app.GetRequiredService<ChatGptClient>();
             var res = await service.ChatAsync(new ChatCompletionRequest
@@ -237,9 +237,9 @@ namespace XpAndRepBot
                 Model = "gpt-3.5-turbo", //only gpt-3.5-turbo or gpt-3.5-turbo-0301 can be chosen now
                 Messages = messages
             }, default);
-            if (Program.Context.TryGetValue(id, out MessageEntry[] array))
+            if (Program.Context.TryGetValue(id, out var array))
             {
-                int index = Array.IndexOf(array, null);
+                var index = Array.IndexOf(array, null);
                 array[index] = new MessageEntry { Role = res.Choices[0].Message.Role, Content = res.Choices[0].Message.Content };
                 Program.Context[id] = array;
             }
@@ -261,9 +261,9 @@ namespace XpAndRepBot
 
                 if (imageResult.Successful)
                 {
-                    string imageUrl = string.Join("\n", imageResult.Results.Select(r => r.Url));
+                    var imageUrl = string.Join("\n", imageResult.Results.Select(r => r.Url));
                     using WebClient webClient = new();
-                    byte[] imageBytes = webClient.DownloadData(imageUrl);
+                    var imageBytes = webClient.DownloadData(imageUrl);
                     using var ms = new MemoryStream(imageBytes);
                     InputOnlineFile image = new(new MemoryStream(imageBytes), "image.png");
                     return image;
@@ -322,9 +322,9 @@ namespace XpAndRepBot
         {
             using var db = new InfoContext();
             var user = db.TableUsers.First(x => x.Id == id);
-            string separator = ", ";
-            string prefix = role + separator;
-            string suffix = separator + role;
+            var separator = ", ";
+            var prefix = role + separator;
+            var suffix = separator + role;
             if (user.Roles == role) user.Roles = null;
             else if (user.Roles.StartsWith(prefix)) user.Roles = user.Roles.Replace(prefix, "");
             else user.Roles = user.Roles.Replace(suffix, "");
@@ -332,18 +332,20 @@ namespace XpAndRepBot
             return $"{user.Name} теряет роль {role}";
         }
 
-        public static string GetRoles()
+        public static string GetRoles(int start)
         {
             using var db = new InfoContext();
             var roleUsers = db.TableUsers.Where(u => u.Roles != null).Select(u => new { u.Roles, u.Name }).ToList();
             var roles = roleUsers.SelectMany(u => u.Roles.Split(", ", StringSplitOptions.RemoveEmptyEntries)).Distinct().ToList();
             roles.Sort();
-            var sb = new StringBuilder("Список ролей:\n");
+            roles = roles.Skip(start).Take(20).ToList();
+            var sb = new StringBuilder("");
             foreach (var role in roles)
             {
                 var users = roleUsers.Where(u => u.Roles.StartsWith(role) || u.Roles.Contains(", " + role)).Select(u => u.Name).ToList();
-                string userList = string.Join(", ", users);
-                sb.Append($"<code>{role}</code>: {userList}\n");
+                var userList = string.Join(", ", users);
+                start++;
+                sb.Append($"{start} || <code>{role}</code>: {userList}\n");
             }
             return sb.ToString();
         }
@@ -351,9 +353,9 @@ namespace XpAndRepBot
         public static string PrintNfc()
         {
             using var db = new InfoContext();
-            List<Users> usersWithNfc = db.TableUsers.Where(u => u.Nfc == true).OrderBy(u => u.StartNfc).ToList();
-            string res = "Без мата 👮‍♂️\n";
-            for (int i = 0; i < usersWithNfc.Count; i++)
+            var usersWithNfc = db.TableUsers.Where(u => u.Nfc == true).OrderBy(u => u.StartNfc).ToList();
+            var res = "Без мата 👮‍♂️\n";
+            for (var i = 0; i < usersWithNfc.Count; i++)
             {
                 var ts = DateTime.Now - usersWithNfc[i].StartNfc;
                 res += $"{i + 1} || {usersWithNfc[i].Name}: {ts.Days} d, {ts.Hours} h, {ts.Minutes} m.\n";
@@ -367,10 +369,10 @@ namespace XpAndRepBot
             var users = db.TableUsers.Where(x => x.Mariage != 0).OrderBy(y => y.DateMariage).ToList();
             StringBuilder sb = new();
             sb.Append("💒 список браков: \n");
-            int number = 1;
-            for (int i = 0; i < users.Count; i++)
+            var number = 1;
+            for (var i = 0; i < users.Count; i++)
             {
-                TimeSpan ts = DateTime.Now - users[i].DateMariage;
+                var ts = DateTime.Now - users[i].DateMariage;
                 if (users[i].Id == users[i].Mariage)
                 {
                     sb.AppendLine($"{number}. {users[i].Name} и {users[i].Name} c {users[i].DateMariage:yy/MM/dd HH:mm:ss} {ts.Days} d, {ts.Hours} h, {ts.Minutes} m");
@@ -388,12 +390,12 @@ namespace XpAndRepBot
         public static async Task<InlineKeyboardMarkup> AcceptMariage(string option, CallbackQuery callbackQuery, ITelegramBotClient botClient, long chatId, long userId, CancellationToken cancellationToken)
         {
             using var db = new InfoContext();
-            InlineKeyboardMarkup inlineKeyboard = callbackQuery.Message.ReplyMarkup;
+            var inlineKeyboard = callbackQuery.Message.ReplyMarkup;
             var user2 = db.TableUsers.First(x => x.Id == userId);
             if (callbackQuery.From.Id == userId && user2.Mariage == 0)
             {
-                string pattern = @"\d+";
-                Match match = Regex.Match(option, pattern);
+                var pattern = @"\d+";
+                var match = Regex.Match(option, pattern);
                 var id = long.Parse(match.Value);
                 var user1 = db.TableUsers.First(x => x.Id == id);
                 inlineKeyboard = null;
@@ -416,7 +418,7 @@ namespace XpAndRepBot
 
         public static async Task<bool> GetChatPermissions(string option, CallbackQuery callbackQuery, ITelegramBotClient botClient, long chatId, CancellationToken cancellationToken)
         {
-            long userId = long.Parse(option[2..]);
+            var userId = long.Parse(option[2..]);
             var flag = false;
             if (callbackQuery.From.Id == userId)
             {

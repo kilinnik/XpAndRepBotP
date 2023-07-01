@@ -251,17 +251,17 @@ namespace XpAndRepBot
         }
     }
 
-    public class HelpChatGPTCommand : ICommand
+    public class HelpChatGptCommand : ICommand
     {
         public async Task ExecuteAsync(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken)
         {
             try
             {
-                await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, replyToMessageId: update.Message.MessageId, text: HelpGPTText, cancellationToken: cancellationToken);
+                await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, replyToMessageId: update.Message.MessageId, text: HelpGptText, cancellationToken: cancellationToken);
             }
             catch
             {
-                await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, text: HelpGPTText, cancellationToken: cancellationToken);
+                await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, text: HelpGptText, cancellationToken: cancellationToken);
             }
         }
     }
@@ -270,7 +270,7 @@ namespace XpAndRepBot
     {
         public async Task ExecuteAsync(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken)
         {
-            var openAiService = new OpenAIService(new OpenAiOptions() { ApiKey = SSHKey });
+            var openAiService = new OpenAIService(new OpenAiOptions() { ApiKey = SshKey });
             var mes = update.Message.Caption ?? update.Message.Text;
             var matches = Regex.Match(mes, @"(?<=\s)\w[\w\s]*");
             try
@@ -307,7 +307,7 @@ namespace XpAndRepBot
     {
         public async Task ExecuteAsync(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken)
         {
-            if (update.Message.From.Id == IID)
+            if (update.Message.From.Id == Iid)
             {
                 try
                 {
@@ -326,13 +326,21 @@ namespace XpAndRepBot
     {
         public async Task ExecuteAsync(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken)
         {
+            var inlineKeyboard = new InlineKeyboardMarkup(new[]
+            {
+                new[]
+                {
+                    InlineKeyboardButton.WithCallbackData("Назад", "backr"),
+                    InlineKeyboardButton.WithCallbackData("Вперёд", "nextr"),
+                }
+            });
             try
             {
-                await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, replyToMessageId: update.Message.MessageId, text: ResponseHandlers.GetRoles(), parseMode: ParseMode.Html, cancellationToken: cancellationToken);
+                await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, replyToMessageId: update.Message.MessageId, replyMarkup: inlineKeyboard, text: ResponseHandlers.GetRoles(0), parseMode: ParseMode.Html, cancellationToken: cancellationToken);
             }
             catch
             {
-                await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, text: ResponseHandlers.GetRoles(), parseMode: ParseMode.Html, cancellationToken: cancellationToken);
+                await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, replyMarkup: inlineKeyboard, text: ResponseHandlers.GetRoles(0), parseMode: ParseMode.Html, cancellationToken: cancellationToken);
             }
         }
     }
@@ -358,8 +366,8 @@ namespace XpAndRepBot
             {
                 user.Nfc = true;
                 DateTime date = new(2009, 8, 1, 12, 0, 0);
-                int result = DateTime.Compare(user.StartNfc, date);
-                string bestTime = "";
+                var result = DateTime.Compare(user.StartNfc, date);
+                var bestTime = "";
                 if (user.BestTime > 0)
                 {
                     var ts = TimeSpan.FromTicks(user.BestTime);
@@ -383,7 +391,7 @@ namespace XpAndRepBot
     {
         public async Task ExecuteAsync(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken)
         {
-            if (update.Message.From.Id == IID)
+            if (update.Message.From.Id == Iid)
             {
                 try
                 {
@@ -562,29 +570,29 @@ namespace XpAndRepBot
             var user = db.TableUsers.FirstOrDefault(x => x.Id == update.Message.From.Id && x.Roles.Contains("модер"));
             if (user != null && update.Message.From.Id != update.Message.ReplyToMessage?.From.Id)
             {
-                string[] parts = update.Message.Text[6..].Split(' ');
+                var parts = update.Message.Text[6..].Split(' ');
                 int days = 0, hours = 0, minutes = 0;
-                foreach (string part in parts)
+                foreach (var part in parts)
                 {
                     if (part.EndsWith("d"))
                     {
-                        if (int.TryParse(part.TrimEnd('d'), out int result))
+                        if (int.TryParse(part.TrimEnd('d'), out var result))
                             days = result;
                     }
                     else if (part.EndsWith("h"))
                     {
-                        if (int.TryParse(part.TrimEnd('h'), out int result))
+                        if (int.TryParse(part.TrimEnd('h'), out var result))
                             hours = result;
                     }
                     else if (part.EndsWith("m"))
                     {
-                        if (int.TryParse(part.TrimEnd('m'), out int result))
+                        if (int.TryParse(part.TrimEnd('m'), out var result))
                             minutes = result;
                     }
                 }
                 if (days != 0 || hours != 0 || minutes != 0)
                 {
-                    DateTime muteDate = DateTime.Now.AddDays(days).AddHours(hours).AddMinutes(minutes);
+                    var muteDate = DateTime.Now.AddDays(days).AddHours(hours).AddMinutes(minutes);
                     await botClient.RestrictChatMemberAsync(
                         chatId: update.Message.Chat.Id,
                         userId: update.Message.ReplyToMessage.From.Id,
@@ -631,23 +639,23 @@ namespace XpAndRepBot
 
         private static string GetFormattedDuration(int days, int hours, int minutes)
         {
-            string duration = "";
+            var duration = "";
 
             if (days > 0)
             {
-                string daysWord = GetNounForm(days, "день", "дня", "дней");
+                var daysWord = GetNounForm(days, "день", "дня", "дней");
                 duration += $"{days} {daysWord} ";
             }
 
             if (hours > 0)
             {
-                string hoursWord = GetNounForm(hours, "час", "часа", "часов");
+                var hoursWord = GetNounForm(hours, "час", "часа", "часов");
                 duration += $"{hours} {hoursWord} ";
             }
 
             if (minutes > 0)
             {
-                string minutesWord = GetNounForm(minutes, "минуту", "минуты", "минут");
+                var minutesWord = GetNounForm(minutes, "минуту", "минуты", "минут");
                 duration += $"{minutes} {minutesWord} ";
             }
 
@@ -656,8 +664,8 @@ namespace XpAndRepBot
 
         private static string GetNounForm(int number, string form1, string form2, string form5)
         {
-            int mod10 = number % 10;
-            int mod100 = number % 100;
+            var mod10 = number % 10;
+            var mod100 = number % 100;
             if (mod100 >= 11 && mod100 <= 19)
                 return form5;
             return mod10 switch
@@ -674,7 +682,7 @@ namespace XpAndRepBot
         public async Task ExecuteAsync(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken)
         {
             using var db = new InfoContext();
-            string status = "";
+            var status = "";
             if (update?.Message?.ReplyToMessage != null && !update.Message.ReplyToMessage.From.IsBot && update.Message.ReplyToMessage.From.Id != 777000)
             {
                 var user1 = db.TableUsers.First(x => x.Id == update.Message.ReplyToMessage.From.Id);
@@ -682,7 +690,7 @@ namespace XpAndRepBot
                 else
                 {
                     var user2 = db.TableUsers.First(x => x.Id == user1.Mariage);
-                    TimeSpan ts = DateTime.Now - user2.DateMariage;
+                    var ts = DateTime.Now - user2.DateMariage;
                     status = $"🤵🏿 🤵🏿 {user1.Name} состоит в браке с {user2.Name} {ts.Days} d, {ts.Hours} h, {ts.Minutes} m. Дата регистрации {user1.DateMariage:yy/MM/dd HH:mm:ss}";
                 }
             }
@@ -693,7 +701,7 @@ namespace XpAndRepBot
                 else
                 {
                     var user2 = db.TableUsers.First(x => x.Id == user1.Mariage);
-                    TimeSpan ts = DateTime.Now - user2.DateMariage;
+                    var ts = DateTime.Now - user2.DateMariage;
                     status = $"🤵🏿 🤵🏿 {user1.Name} состоит в браке с {user2.Name} {ts.Days} d, {ts.Hours} h, {ts.Minutes} m. Дата регистрации {user1.DateMariage:yy/MM/dd HH:mm:ss}";
                 }
             }
@@ -749,9 +757,9 @@ namespace XpAndRepBot
                 var user2 = db.TableUsers.First(x => x.Id == user1.Mariage);
                 user1.Mariage = 0;
                 user2.Mariage = 0;
-                TimeSpan ts = DateTime.Now - user2.DateMariage;
+                var ts = DateTime.Now - user2.DateMariage;
                 db.SaveChanges();
-                string mes = $"💔 {user2.Name} сожалеем, но {user1.Name} подал на развод. Ваш брак был зарегистрирован {user1.DateMariage:yy/MM/dd HH:mm:ss} и просуществовал {ts.Days} d, {ts.Hours} h, {ts.Minutes} m";
+                var mes = $"💔 {user2.Name} сожалеем, но {user1.Name} подал на развод. Ваш брак был зарегистрирован {user1.DateMariage:yy/MM/dd HH:mm:ss} и просуществовал {ts.Days} d, {ts.Hours} h, {ts.Minutes} m";
                 await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, replyToMessageId: update.Message.MessageId, text: mes, cancellationToken: cancellationToken);
             }
         }
@@ -776,7 +784,7 @@ namespace XpAndRepBot
     {
         public async Task ExecuteAsync(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken)
         {
-            string mes = update.Message.Text;
+            var mes = update.Message.Text;
             if (mes == "/w") await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, text: "Вы не написали слово", cancellationToken: cancellationToken);
             else
             {
