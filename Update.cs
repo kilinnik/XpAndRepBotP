@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -181,46 +182,155 @@ namespace XpAndRepBot
             await ChatHandlers.Delete(botClient, update, user, cancellationToken);
         }
 
-        private static async Task ProcessMessageContent(ITelegramBotClient botClient, InfoContext db, Update update, Users user, CancellationToken cancellationToken)
+        private static async Task ProcessMessageContent(ITelegramBotClient botClient, InfoContext db, Update update,Users user, CancellationToken cancellationToken)
         {
-            if (update.Message?.Text != null || update.Message?.Caption != null)
+            if (ShouldProcessMessage(update))
             {
-                var mes = update.Message.Caption ?? update.Message.Text;
+                var mes = GetMessageText(update);
 
                 //experience
                 user.CurXp += mes.Length;
 
-                //reputation up
-                if (update.Message.ReplyToMessage is { From: not null } &&
-                    (!update.Message.ReplyToMessage.From.IsBot || update.Message.ReplyToMessage.From.Id == BotId))
-                {
-                    await ChatHandlers.ReputationUp(botClient, update, db, mes, cancellationToken);
-                }
-
-                //request to ChatGPT
-                var chatId = update.Message.Chat.Id;
-                var match = Regex.Match(mes, @"^.*?([\w/]+)");
-                if (!Commands.Keys.Any(key => mes.StartsWith(key)) &&
-                    (update.Message?.ReplyToMessage is { From.Id: BotId } ||
-                     mes.Contains("@XpAndRepBot") || chatId == Mid || chatId == Iid))
-                {
-                    await ChatHandlers.RequestChatGpt(botClient, update, mes, cancellationToken);
-                }
-
-                //fill lexicon table
+                await HandleReputationUp(botClient, update, db, mes, cancellationToken);
                 await ChatHandlers.AddWordsInLexicon(user, mes);
-                
-                //level up
-                if (update.Message?.Chat.Id != Mid)
+                await HandleLevelUp(botClient, update, db, user, cancellationToken);
+                await HandleCommands(botClient, update, cancellationToken);
+                await HandleMentions(db, user, update, botClient, cancellationToken);
+                await HandleNfc(botClient, update, user, cancellationToken);
+                await HandleRepeatedMessages(botClient, update, user, cancellationToken);
+                await HandleChatGptRequest(botClient, update, mes, cancellationToken);
+
+                await db.SaveChangesAsync(cancellationToken);
+            }
+        }
+
+        private static bool ShouldProcessMessage(Update update)
+        {
+            return update.Message?.Text != null || update.Message?.Caption != null;
+        }
+
+        private static string GetMessageText(Update update)
+        {
+            if (update.Message != null) return update.Message.Caption ?? update.Message.Text;
+            return null;
+        }
+
+        private static async Task HandleReputationUp(ITelegramBotClient botClient, Update update, InfoContext db, string messageText, CancellationToken cancellationToken)
+        {
+            if (update.Message is { ReplyToMessage.From: not null } &&
+                (!update.Message.ReplyToMessage.From.IsBot || update.Message.ReplyToMessage.From.Id == BotId))
+            {
+                await ChatHandlers.ReputationUp(botClient, update, db, messageText, cancellationToken);
+            }
+        }
+
+        private static async Task HandleChatGptRequest(ITelegramBotClient botClient, Update update, string messageText, CancellationToken cancellationToken)
+        {
+            if (update.Message != null)
+            {
+                var chatId = update.Message.Chat.Id;
+                if (!Commands.Keys.Any(messageText.StartsWith) && (update.Message?.ReplyToMessage is { From.Id: BotId } ||
+                     messageText.Contains("@XpAndRepBot") || chatId == Mid || chatId == Iid))
                 {
-                    await ChatHandlers.LvlUp(botClient, update, db, user, cancellationToken);
+                    await ChatHandlers.RequestChatGpt(botClient, update, messageText, cancellationToken);
                 }
-                
-                //commands
-                if (Commands.ContainsKey(match.Value.ToLower()))
+            }
+        }
+
+        private static async Task HandleLevelUp(ITelegramBotClient botClient, Update update, InfoContext db, Users user, CancellationToken cancellationToken)
+        {
+            if (update.Message?.Chat.Id != Mid)
+            {
+                await ChatHandlers.LvlUp(botClient, update, db, user, cancellationToken);
+            }
+        }
+
+        private static async Task HandleCommands(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken)
+        {
+            var messageText = GetMessageText(update);
+            var match = Regex.Match(messageText, @"^.*?([\w/]+)");
+            if (Commands.ContainsKey(match.Value.ToLower()))
+            {
+                var command = Commands[match.Value.ToLower()];
+                await command.ExecuteAsync(botClient, update, cancellationToken);
+            }
+        }
+
+        private static Task HandleMentions(InfoContext db, Users user, Update update, ITelegramBotClient botClient, CancellationToken cancellationToken)
+        {
+            var messageText = GetMessageText(update);
+            if (messageText.Length >= 100) return Task.CompletedTask;
+            var mentionUsers = db.TableUsers.Where(x =>
+                x.Roles.Equals(messageText.Substring(1)) || x.Roles.StartsWith(messageText.Substring(1) + ",") ||
+                x.Roles.Contains(", " + messageText.Substring(1) + ",") ||
+                x.Roles.EndsWith(", " + messageText.Substring(1))).ToList();
+            if (messageText[0] != '@' || mentionUsers.Count <= 0) return Task.CompletedTask;
+            if (update.Message != null)
+            {
+                ChatHandlers.Mention(mentionUsers, user.Name, update.Message.Chat.Id, botClient, cancellationToken);
+            }
+
+            return Task.CompletedTask;
+        }
+
+        private static async Task HandleNfc(ITelegramBotClient botClient, Update update, Users user, CancellationToken cancellationToken)
+        {
+            if (user.Nfc == true)
+            {
+                const string filePath = "bw.txt";
+                var words = await ReadFileLinesToLower(filePath);
+                var messageWords = GetMessageText(update)
+                    .Split(new[] { ' ', ',', '.', '!', '?' }, StringSplitOptions.RemoveEmptyEntries);
+                var containsWord = messageWords.Any(w => words.Contains(w.ToLower()));
+                if (containsWord)
                 {
-                    var command = Commands[match.Value.ToLower()];
-                    await command.ExecuteAsync(botClient, update, cancellationToken);
+                    if (update.Message != null)
+                    {
+                        await botClient.SendTextMessageAsync(
+                            chatId: update.Message.Chat.Id,
+                            text: await ChatHandlers.Nfc(user, botClient, cancellationToken),
+                            cancellationToken: cancellationToken);
+                        
+                    }
+                }
+            }
+        }
+
+        private static async Task<List<string>> ReadFileLinesToLower(string filePath)
+        {
+            var words = new List<string>();
+            using StreamReader reader = new(filePath);
+            while (!reader.EndOfStream)
+            {
+                var line = await reader.ReadLineAsync();
+                if (line != null) words.Add(line.ToLower());
+            }
+
+            return words;
+        }
+
+        private static async Task HandleRepeatedMessages(ITelegramBotClient botClient, Update update, Users user, CancellationToken cancellationToken)
+        {
+            var messageText = GetMessageText(update);
+            if (user.LastMessage == messageText)
+            {
+                user.CountRepeatMessage++;
+            }
+            else
+            {
+                user.LastMessage = messageText;
+                user.CountRepeatMessage = 1;
+            }
+
+            if (user.CountRepeatMessage > 3)
+            {
+                if (update.Message != null)
+                {
+                    await botClient.DeleteMessageAsync(
+                        update.Message.Chat.Id, 
+                        update.Message.MessageId,
+                        cancellationToken);
+                    
                 }
             }
         }

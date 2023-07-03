@@ -6,7 +6,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using Telegram.Bot;
 using Telegram.Bot.Types;
-using Microsoft.EntityFrameworkCore;
 using System.Data.SqlClient;
 using static XpAndRepBot.Consts;
 using Mirror.ChatGpt.Models.ChatGpt;
@@ -172,8 +171,12 @@ namespace XpAndRepBot
             try
             {
                 if (update.Message != null)
-                    await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id,
-                        text: ResponseHandlers.RepUp(update, db, mes), cancellationToken: cancellationToken);
+                {
+                    await botClient.SendTextMessageAsync(
+                        chatId: update.Message.Chat.Id,
+                        text: ResponseHandlers.RepUp(update, db, mes),
+                        cancellationToken: cancellationToken);
+                }
             }
             catch
             {
@@ -257,8 +260,9 @@ namespace XpAndRepBot
             botClient.SendTextMessageAsync(chatId: chatId, text: res, parseMode: ParseMode.Html, cancellationToken: cancellationToken);
         }
 
-        public static async Task<string> Nfc(Users user, DbContext db, ITelegramBotClient botClient, CancellationToken cancellationToken)
+        public static async Task<string> Nfc(Users user, ITelegramBotClient botClient, CancellationToken cancellationToken)
         {
+            await using var db = new InfoContext();
             user.Nfc = false;
             var ts = DateTime.Now - user.StartNfc;
             if (ts.Ticks > user.BestTime) user.BestTime = ts.Ticks;

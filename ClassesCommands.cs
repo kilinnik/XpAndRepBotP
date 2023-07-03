@@ -7,9 +7,9 @@ using Telegram.Bot.Types;
 using Telegram.Bot.Types.ReplyMarkups;
 using System.Text.RegularExpressions;
 using System.Linq;
-using static XpAndRepBot.Consts;
 using Telegram.Bot.Types.Enums;
 using System;
+using static XpAndRepBot.Consts;
 
 namespace XpAndRepBot
 {
@@ -25,15 +25,25 @@ namespace XpAndRepBot
             try
             {
                 if (update.Message != null)
-                    await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id,
-                        replyToMessageId: update.Message.MessageId, parseMode: ParseMode.Html, text: HelpText,
+                {
+                    await botClient.SendTextMessageAsync(
+                        chatId: update.Message.Chat.Id,
+                        replyToMessageId: update.Message.MessageId, 
+                        parseMode: ParseMode.Html, 
+                        text: HelpText,
                         cancellationToken: cancellationToken);
+                }
             }
             catch
             {
                 if (update.Message != null)
-                    await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, parseMode: ParseMode.Html,
-                        text: HelpText, cancellationToken: cancellationToken);
+                {
+                    await botClient.SendTextMessageAsync(
+                        chatId: update.Message.Chat.Id, 
+                        parseMode: ParseMode.Html,
+                        text: HelpText, 
+                        cancellationToken: cancellationToken);
+                }
             }
         }
     }
@@ -45,15 +55,23 @@ namespace XpAndRepBot
             try
             {
                 if (update.Message != null)
-                    await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id,
-                        replyToMessageId: update.Message.MessageId, text: Rewards,
+                {
+                    await botClient.SendTextMessageAsync(
+                        chatId: update.Message.Chat.Id,
+                        replyToMessageId: update.Message.MessageId, 
+                        text: Rewards,
                         cancellationToken: cancellationToken);
+                }
             }
             catch
             {
                 if (update.Message != null)
-                    await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, text: Rewards,
+                {
+                    await botClient.SendTextMessageAsync(
+                        chatId: update.Message.Chat.Id, 
+                        text: Rewards,
                         cancellationToken: cancellationToken);
+                }
             }
         }
     }
@@ -71,51 +89,62 @@ namespace XpAndRepBot
                 }
             });
             long userId = 0;
-            if (update.Message is { Entities: not null } && update.Message.Entities.Any(x => x.Type
-                    is MessageEntityType.TextMention or MessageEntityType.Mention))
+            switch (update.Message)
             {
-                foreach (var entity in update.Message.Entities)
+                case { Entities: not null } when update.Message.Entities.Any(x => x.Type
+                    is MessageEntityType.TextMention or MessageEntityType.Mention):
                 {
-                    switch (entity.Type)
+                    foreach (var entity in update.Message.Entities)
                     {
-                        case MessageEntityType.TextMention:
-                            if (entity.User != null) userId = entity.User.Id;
-                            break;
-                        case MessageEntityType.Mention:
+                        switch (entity.Type)
                         {
-                            await using var db = new InfoContext();
-                            var user = db.TableUsers.FirstOrDefault(x =>
-                                x.Username == update.Message.Text.Substring(entity.Offset + 1, entity.Length - 1));
-                            if (user != null) userId = user.Id;
-                            break;
+                            case MessageEntityType.TextMention:
+                                if (entity.User != null) userId = entity.User.Id;
+                                break;
+                            case MessageEntityType.Mention:
+                            {
+                                await using var db = new InfoContext();
+                                var user = db.TableUsers.FirstOrDefault(x =>
+                                    x.Username == update.Message.Text.Substring(entity.Offset + 1, entity.Length - 1));
+                                if (user != null) userId = user.Id;
+                                break;
+                            }
+                            default:
+                                break;
                         }
-                        default:
-                            break;
                     }
+
+                    break;
                 }
-            }
-            else if (update.Message is { ReplyToMessage.From.IsBot: false } &&
-                     update.Message.ReplyToMessage.From.Id != 777000)
-            {
-                userId = update.Message.ReplyToMessage.From.Id;
-            }
-            else
-            {
-                if (update.Message is { From: not null }) userId = update.Message.From.Id;
+                case { ReplyToMessage.From.IsBot: false } when update.Message.ReplyToMessage.From.Id != 777000:
+                    userId = update.Message.ReplyToMessage.From.Id;
+                    break;
+                case { From: not null }:
+                    userId = update.Message.From.Id;
+                    break;
             }
 
             try
             {
                 if (update.Message != null)
-                    await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, replyMarkup: inlineKeyboard,
-                        replyToMessageId: update.Message.MessageId, text: await ResponseHandlers.Me(userId),
+                {
+                    await botClient.SendTextMessageAsync(
+                        chatId: update.Message.Chat.Id, 
+                        replyMarkup: inlineKeyboard,
+                        replyToMessageId: update.Message.MessageId, 
+                        text: await ResponseHandlers.Me(userId),
                         cancellationToken: cancellationToken);
+                }
             }
             catch
             {
                 if (update.Message != null)
-                    await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id,
-                        text: await ResponseHandlers.Me(userId), cancellationToken: cancellationToken);
+                {
+                    await botClient.SendTextMessageAsync(
+                        chatId: update.Message.Chat.Id,
+                        text: await ResponseHandlers.Me(userId), 
+                        cancellationToken: cancellationToken);
+                }
             }
         }
     }
@@ -135,15 +164,25 @@ namespace XpAndRepBot
             try
             {
                 if (update.Message != null)
-                    await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, replyMarkup: inlineKeyboard,
-                        replyToMessageId: update.Message.MessageId, text: ResponseHandlers.TopLvl(0),
+                {
+                    await botClient.SendTextMessageAsync(
+                        chatId: update.Message.Chat.Id, 
+                        replyMarkup: inlineKeyboard,
+                        replyToMessageId: update.Message.MessageId, 
+                        text: ResponseHandlers.TopLvl(0),
                         cancellationToken: cancellationToken);
+                }
             }
             catch
             {
                 if (update.Message != null)
-                    await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, replyMarkup: inlineKeyboard,
-                        text: ResponseHandlers.TopLvl(0), cancellationToken: cancellationToken);
+                {
+                    await botClient.SendTextMessageAsync(
+                        chatId: update.Message.Chat.Id, 
+                        replyMarkup: inlineKeyboard,
+                        text: ResponseHandlers.TopLvl(0), 
+                        cancellationToken: cancellationToken);
+                }
             }
         }
     }
@@ -163,15 +202,25 @@ namespace XpAndRepBot
             try
             {
                 if (update.Message != null)
-                    await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, replyMarkup: inlineKeyboard,
-                        replyToMessageId: update.Message.MessageId, text: ResponseHandlers.TopRep(0),
+                {
+                    await botClient.SendTextMessageAsync(
+                        chatId: update.Message.Chat.Id, 
+                        replyMarkup: inlineKeyboard,
+                        replyToMessageId: update.Message.MessageId, 
+                        text: ResponseHandlers.TopRep(0),
                         cancellationToken: cancellationToken);
+                }
             }
             catch
             {
                 if (update.Message != null)
-                    await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, replyMarkup: inlineKeyboard,
-                        text: ResponseHandlers.TopRep(0), cancellationToken: cancellationToken);
+                {
+                    await botClient.SendTextMessageAsync(
+                        chatId: update.Message.Chat.Id, 
+                        replyMarkup: inlineKeyboard,
+                        text: ResponseHandlers.TopRep(0), 
+                        cancellationToken: cancellationToken);
+                }
             }
         }
     }
@@ -183,15 +232,24 @@ namespace XpAndRepBot
             try
             {
                 if (update.Message != null)
-                    await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id,
-                        replyToMessageId: update.Message.MessageId, text: RulesText, parseMode: ParseMode.Html,
+                {
+                    await botClient.SendTextMessageAsync(
+                        chatId: update.Message.Chat.Id,
+                        replyToMessageId: update.Message.MessageId, 
+                        text: RulesText, parseMode: ParseMode.Html,
                         cancellationToken: cancellationToken);
+                }
             }
             catch
             {
                 if (update.Message != null)
-                    await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, text: RulesText,
-                        parseMode: ParseMode.Html, cancellationToken: cancellationToken);
+                {
+                    await botClient.SendTextMessageAsync(
+                        chatId: update.Message.Chat.Id, 
+                        text: RulesText,
+                        parseMode: ParseMode.Html, 
+                        cancellationToken: cancellationToken);
+                }
             }
         }
     }
@@ -203,15 +261,23 @@ namespace XpAndRepBot
             try
             {
                 if (update.Message != null)
-                    await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id,
-                        replyToMessageId: update.Message.MessageId, text: MesRepText,
+                {
+                    await botClient.SendTextMessageAsync(
+                        chatId: update.Message.Chat.Id,
+                        replyToMessageId: update.Message.MessageId, 
+                        text: MesRepText,
                         cancellationToken: cancellationToken);
+                }
             }
             catch
             {
                 if (update.Message != null)
-                    await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, text: MesRepText,
+                {
+                    await botClient.SendTextMessageAsync(
+                        chatId: update.Message.Chat.Id, 
+                        text: MesRepText,
                         cancellationToken: cancellationToken);
+                }
             }
         }
     }
@@ -223,15 +289,23 @@ namespace XpAndRepBot
             try
             {
                 if (update.Message != null)
-                    await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id,
-                        replyToMessageId: update.Message.MessageId, text: GamesText,
+                {
+                    await botClient.SendTextMessageAsync(
+                        chatId: update.Message.Chat.Id,
+                        replyToMessageId: update.Message.MessageId, 
+                        text: GamesText,
                         cancellationToken: cancellationToken);
+                }
             }
             catch
             {
                 if (update.Message != null)
-                    await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, text: GamesText,
+                {
+                    await botClient.SendTextMessageAsync(
+                        chatId: update.Message.Chat.Id, 
+                        text: GamesText,
                         cancellationToken: cancellationToken);
+                }
             }
         }
     }
@@ -251,15 +325,25 @@ namespace XpAndRepBot
             try
             {
                 if (update.Message != null)
-                    await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, replyMarkup: inlineKeyboard,
-                        replyToMessageId: update.Message.MessageId, text: await ResponseHandlers.TopWords(0),
+                {
+                    await botClient.SendTextMessageAsync(
+                        chatId: update.Message.Chat.Id, 
+                        replyMarkup: inlineKeyboard,
+                        replyToMessageId: update.Message.MessageId, 
+                        text: await ResponseHandlers.TopWords(0),
                         cancellationToken: cancellationToken);
+                }
             }
             catch
             {
                 if (update.Message != null)
-                    await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, replyMarkup: inlineKeyboard,
-                        text: await ResponseHandlers.TopWords(0), cancellationToken: cancellationToken);
+                {
+                    await botClient.SendTextMessageAsync(
+                        chatId: update.Message.Chat.Id, 
+                        replyMarkup: inlineKeyboard,
+                        text: await ResponseHandlers.TopWords(0), 
+                        cancellationToken: cancellationToken);
+                }
             }
         }
     }
@@ -279,15 +363,25 @@ namespace XpAndRepBot
             try
             {
                 if (update.Message != null)
-                    await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, replyMarkup: inlineKeyboard,
-                        replyToMessageId: update.Message.MessageId, text: await ResponseHandlers.TopLexicon(0),
+                {
+                    await botClient.SendTextMessageAsync(
+                        chatId: update.Message.Chat.Id, 
+                        replyMarkup: inlineKeyboard,
+                        replyToMessageId: update.Message.MessageId, 
+                        text: await ResponseHandlers.TopLexicon(0),
                         cancellationToken: cancellationToken);
+                }
             }
             catch
             {
                 if (update.Message != null)
-                    await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, replyMarkup: inlineKeyboard,
-                        text: await ResponseHandlers.TopLexicon(0), cancellationToken: cancellationToken);
+                {
+                    await botClient.SendTextMessageAsync(
+                        chatId: update.Message.Chat.Id, 
+                        replyMarkup: inlineKeyboard,
+                        text: await ResponseHandlers.TopLexicon(0), 
+                        cancellationToken: cancellationToken);
+                }
             }
         }
     }
@@ -301,17 +395,29 @@ namespace XpAndRepBot
             try
             {
                 if (update.Message != null)
+                { 
                     if (user != null)
-                        await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id,
-                            replyToMessageId: update.Message.MessageId, text: $"🖕, {user.Name}, иди на хуй 🖕",
+                    {
+                        await botClient.SendTextMessageAsync(
+                            chatId: update.Message.Chat.Id,
+                            replyToMessageId: update.Message.MessageId, 
+                            text: $"🖕, {user.Name}, иди на хуй 🖕",
                             cancellationToken: cancellationToken);
+                    }
+                }
             }
             catch
             {
                 if (update.Message != null)
+                {
                     if (user != null)
-                        await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id,
-                            text: $"🖕, {user.Name}, иди на хуй 🖕", cancellationToken: cancellationToken);
+                    {
+                        await botClient.SendTextMessageAsync(
+                            chatId: update.Message.Chat.Id,
+                            text: $"🖕, {user.Name}, иди на хуй 🖕", 
+                            cancellationToken: cancellationToken);
+                    }
+                }
             }
         }
     }
@@ -323,21 +429,30 @@ namespace XpAndRepBot
             try
             {
                 if (update.Message != null)
-                    await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id,
-                        replyToMessageId: update.Message.MessageId, text: HelpGptText,
+                {
+                    await botClient.SendTextMessageAsync(
+                        chatId: update.Message.Chat.Id,
+                        replyToMessageId: update.Message.MessageId, 
+                        text: HelpGptText,
                         cancellationToken: cancellationToken);
+                }
             }
             catch
             {
                 if (update.Message != null)
-                    await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, text: HelpGptText,
+                {
+                    await botClient.SendTextMessageAsync(
+                        chatId: update.Message.Chat.Id, 
+                        text: HelpGptText,
                         cancellationToken: cancellationToken);
+                }
             }
         }
     }
 
     public class ImageDalleCommand : ICommand
     {
+        [Obsolete("Obsolete")]
         public async Task ExecuteAsync(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken)
         {
             var openAiService = new OpenAIService(new OpenAiOptions() { ApiKey = SshKey });
@@ -351,21 +466,24 @@ namespace XpAndRepBot
                     {
                         try
                         {
-                            await botClient.SendPhotoAsync(chatId: update.Message.Chat.Id,
+                            await botClient.SendPhotoAsync(
+                                chatId: update.Message.Chat.Id,
                                 replyToMessageId: update.Message.MessageId,
                                 photo: await ResponseHandlers.GenerateImage(openAiService, matches.Value),
                                 cancellationToken: cancellationToken);
                         }
                         catch
                         {
-                            await botClient.SendPhotoAsync(chatId: update.Message.Chat.Id,
+                            await botClient.SendPhotoAsync(
+                                chatId: update.Message.Chat.Id,
                                 photo: await ResponseHandlers.GenerateImage(openAiService, matches.Value),
                                 cancellationToken: cancellationToken);
                         }
                     }
                     catch
                     {
-                        await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id,
+                        await botClient.SendTextMessageAsync(
+                            chatId: update.Message.Chat.Id,
                             text: "Произошла ошибка. Возможно вы не ввели текст/ввели некорректный запрос ",
                             cancellationToken: cancellationToken);
                     }
@@ -381,15 +499,23 @@ namespace XpAndRepBot
             try
             {
                 if (update.Message != null)
-                    await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id,
-                        replyToMessageId: update.Message.MessageId, text: TgEmpress,
+                {
+                    await botClient.SendTextMessageAsync(
+                        chatId: update.Message.Chat.Id,
+                        replyToMessageId: update.Message.MessageId, 
+                        text: TgEmpress,
                         cancellationToken: cancellationToken);
+                }
             }
             catch
             {
                 if (update.Message != null)
-                    await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, text: TgEmpress,
+                {
+                    await botClient.SendTextMessageAsync(
+                        chatId: update.Message.Chat.Id, 
+                        text: TgEmpress,
                         cancellationToken: cancellationToken);
+                }
             }
         }
     }
@@ -403,23 +529,38 @@ namespace XpAndRepBot
                 try
                 {
                     if (update.Message.ReplyToMessage is { From: not null })
+                    {
                         if (update.Message.Text != null)
-                            await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id,
+                        {
+                            await botClient.SendTextMessageAsync(
+                                chatId: update.Message.Chat.Id,
                                 replyToMessageId: update.Message.ReplyToMessage.MessageId,
-                                text: ResponseHandlers.GiveRole(update.Message.ReplyToMessage.From.Id,
-                                    update.Message.Text[6..]), cancellationToken: cancellationToken);
+                                text: ResponseHandlers.GiveRole(update.Message.ReplyToMessage.From.Id, update.Message.Text[6..]), 
+                                cancellationToken: cancellationToken);
+                        }
+                    }
                 }
                 catch
                 {
                     if (update.Message.ReplyToMessage?.From != null)
+                    {
                         if (update.Message.Text != null)
-                            await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id,
-                                text: ResponseHandlers.GiveRole(update.Message.ReplyToMessage.From.Id,
-                                    update.Message.Text[6..]), cancellationToken: cancellationToken);
+                        {
+                            await botClient.SendTextMessageAsync(
+                                chatId: update.Message.Chat.Id,
+                                text: ResponseHandlers.GiveRole(update.Message.ReplyToMessage.From.Id,update.Message.Text[6..]), 
+                                cancellationToken: cancellationToken);
+                        }
+                    }
                 }
             }
             else if (update.Message != null)
-                await botClient.DeleteMessageAsync(update.Message.Chat.Id, update.Message.MessageId, cancellationToken);
+            {
+                await botClient.DeleteMessageAsync(
+                    update.Message.Chat.Id, 
+                    update.Message.MessageId, 
+                    cancellationToken);
+            }
         }
     }
 
@@ -464,15 +605,23 @@ namespace XpAndRepBot
                 try
                 {
                     if (update.Message != null)
-                        await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id,
-                            replyToMessageId: update.Message.MessageId, text: ResponseHandlers.PrintNfc(),
+                    {
+                        await botClient.SendTextMessageAsync(
+                            chatId: update.Message.Chat.Id,
+                            replyToMessageId: update.Message.MessageId, 
+                            text: ResponseHandlers.PrintNfc(),
                             cancellationToken: cancellationToken);
+                    }
                 }
                 catch
                 {
                     if (update.Message != null)
-                        await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id,
-                            text: ResponseHandlers.PrintNfc(), cancellationToken: cancellationToken);
+                    {
+                        await botClient.SendTextMessageAsync(
+                            chatId: update.Message.Chat.Id,
+                            text: ResponseHandlers.PrintNfc(), 
+                            cancellationToken: cancellationToken);
+                    }
                 }
             }
             else
@@ -490,17 +639,23 @@ namespace XpAndRepBot
                 try
                 {
                     if (update.Message != null)
-                        await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id,
+                    {
+                        await botClient.SendTextMessageAsync(
+                            chatId: update.Message.Chat.Id,
                             replyToMessageId: update.Message.MessageId,
                             text: $"Вы начали новую серию без мата 👮‍♂️{bestTime}\nУдачи 😉",
                             cancellationToken: cancellationToken);
+                    }
                 }
                 catch
                 {
                     if (update.Message != null)
-                        await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id,
+                    {
+                        await botClient.SendTextMessageAsync(
+                            chatId: update.Message.Chat.Id,
                             text: $"Вы начали новую серию без мата 👮‍♂️\nУдачи 😉",
                             cancellationToken: cancellationToken);
+                    }
                 }
             }
         }
@@ -515,24 +670,39 @@ namespace XpAndRepBot
                 try
                 {
                     if (update.Message.ReplyToMessage?.From != null)
+                    {
                         if (update.Message.Text != null)
-                            await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id,
+                        {
+                            await botClient.SendTextMessageAsync(
+                                chatId: update.Message.Chat.Id,
                                 replyToMessageId: update.Message.MessageId,
-                                text: ResponseHandlers.DelRole(update.Message.ReplyToMessage.From.Id,
-                                    update.Message.Text[5..]), cancellationToken: cancellationToken);
+                                text: ResponseHandlers.DelRole(update.Message.ReplyToMessage.From.Id, update.Message.Text[5..]), 
+                                cancellationToken: cancellationToken);
+                        }
+                    }
                 }
                 catch
                 {
                     if (update.Message.ReplyToMessage?.From != null)
+                    {
                         if (update.Message.Text != null)
-                            await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id,
-                                text: ResponseHandlers.DelRole(update.Message.ReplyToMessage.From.Id,
-                                    update.Message.Text[5..]), parseMode: ParseMode.Html,
+                        {
+                            await botClient.SendTextMessageAsync(
+                                chatId: update.Message.Chat.Id,
+                                text: ResponseHandlers.DelRole(update.Message.ReplyToMessage.From.Id,update.Message.Text[5..]), 
+                                parseMode: ParseMode.Html,
                                 cancellationToken: cancellationToken);
+                        }
+                    }
                 }
             }
             else if (update.Message != null)
-                await botClient.DeleteMessageAsync(update.Message.Chat.Id, update.Message.MessageId, cancellationToken);
+            {
+                await botClient.DeleteMessageAsync(
+                    update.Message.Chat.Id, 
+                    update.Message.MessageId, 
+                    cancellationToken);
+            }
         }
     }
 
@@ -543,17 +713,23 @@ namespace XpAndRepBot
             try
             {
                 if (update.Message?.Text != null)
-                    await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id,
+                {
+                    await botClient.SendTextMessageAsync(
+                        chatId: update.Message.Chat.Id,
                         replyToMessageId: update.Message.MessageId,
                         text: await ResponseHandlers.RequestBalaboba(update.Message.Text[3..]),
                         cancellationToken: cancellationToken);
+                }
             }
             catch
             {
                 if (update.Message?.Text != null)
-                    await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id,
+                {
+                    await botClient.SendTextMessageAsync(
+                        chatId: update.Message.Chat.Id,
                         text: await ResponseHandlers.RequestBalaboba(update.Message.Text[3..]),
                         cancellationToken: cancellationToken);
+                }
             }
         }
     }
@@ -568,18 +744,29 @@ namespace XpAndRepBot
             {
                 try
                 {
-                    await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id,
-                        replyToMessageId: update.Message.MessageId, parseMode: ParseMode.Html, text: HelpAdminText,
-                        cancellationToken: cancellationToken);
+                    {
+                        await botClient.SendTextMessageAsync(
+                            chatId: update.Message.Chat.Id,
+                            replyToMessageId: update.Message.MessageId, 
+                            parseMode: ParseMode.Html, 
+                            text: HelpAdminText,
+                            cancellationToken: cancellationToken);
+                        
+                    }
                 }
                 catch
                 {
-                    await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, parseMode: ParseMode.Html,
+                    await botClient.SendTextMessageAsync(
+                        chatId: update.Message.Chat.Id, 
+                        parseMode: ParseMode.Html,
                         text: HelpAdminText, cancellationToken: cancellationToken);
                 }
             }
             else if (update.Message != null)
-                await botClient.DeleteMessageAsync(update.Message.Chat.Id, update.Message.MessageId, cancellationToken);
+                await botClient.DeleteMessageAsync(
+                    update.Message.Chat.Id, 
+                    update.Message.MessageId, 
+                    cancellationToken);
         }
     }
 
@@ -596,13 +783,17 @@ namespace XpAndRepBot
                 {
                     if (update.Message.ReplyToMessage != null)
                     {
-                        await botClient.BanChatMemberAsync(chatId: update.Message.Chat.Id,
-                            userId: update.Message.ReplyToMessage.From.Id, cancellationToken: cancellationToken);
-                        await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id,
+                        await botClient.BanChatMemberAsync(
+                            chatId: update.Message.Chat.Id,
+                            userId: update.Message.ReplyToMessage.From.Id, 
+                            cancellationToken: cancellationToken);
+                        await botClient.SendTextMessageAsync(
+                            chatId: update.Message.Chat.Id,
                             replyToMessageId: update.Message.ReplyToMessage.MessageId,
                             text: $"{update.Message.ReplyToMessage.From.FirstName} забанен",
                             cancellationToken: cancellationToken);
-                        await botClient.DeleteMessageAsync(update.Message.Chat.Id,
+                        await botClient.DeleteMessageAsync(
+                            update.Message.Chat.Id,
                             update.Message.ReplyToMessage.MessageId,
                             cancellationToken);
                     }
@@ -613,7 +804,12 @@ namespace XpAndRepBot
                 }
             }
             else if (update.Message != null)
-                await botClient.DeleteMessageAsync(update.Message.Chat.Id, update.Message.MessageId, cancellationToken);
+            {
+                await botClient.DeleteMessageAsync(
+                    update.Message.Chat.Id, 
+                    update.Message.MessageId, 
+                    cancellationToken);
+            }
         }
     }
 
@@ -628,8 +824,7 @@ namespace XpAndRepBot
             {
                 long userId = 0;
                 var name = "";
-                if (update.Message.Entities != null &&
-                    update.Message.Entities.Any(x => x.Type == MessageEntityType.Mention))
+                if (update.Message.Entities != null && update.Message.Entities.Any(x => x.Type == MessageEntityType.Mention))
                 {
                     foreach (var entity in update.Message.Entities)
                     {
@@ -665,14 +860,12 @@ namespace XpAndRepBot
                                 CanInviteUsers = true,
                                 CanPinMessages = true,
                             },
-                            cancellationToken: cancellationToken
-                        );
+                            cancellationToken: cancellationToken);
                         await botClient.SendTextMessageAsync(
                             chatId: update.Message.Chat.Id,
                             replyToMessageId: update.Message.MessageId,
                             text: $"{name} разбанен",
-                            cancellationToken: cancellationToken
-                        );
+                            cancellationToken: cancellationToken);
                     }
                 }
                 catch
@@ -681,7 +874,12 @@ namespace XpAndRepBot
                 }
             }
             else if (update.Message != null)
-                await botClient.DeleteMessageAsync(update.Message.Chat.Id, update.Message.MessageId, cancellationToken);
+            {
+                await botClient.DeleteMessageAsync(
+                    update.Message.Chat.Id, 
+                    update.Message.MessageId, 
+                    cancellationToken);
+            }
         }
     }
 
@@ -697,19 +895,31 @@ namespace XpAndRepBot
                 try
                 {
                     if (update.Message.ReplyToMessage != null)
-                        await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id,
+                    {
+                        await botClient.SendTextMessageAsync(
+                            chatId: update.Message.Chat.Id,
                             replyToMessageId: update.Message.ReplyToMessage.MessageId,
                             text: ResponseHandlers.Warn(update),
                             cancellationToken: cancellationToken);
+                    }
                 }
                 catch
                 {
-                    await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id,
-                        text: ResponseHandlers.Warn(update), cancellationToken: cancellationToken);
+                    {
+                        await botClient.SendTextMessageAsync(
+                            chatId: update.Message.Chat.Id,
+                            text: ResponseHandlers.Warn(update), 
+                            cancellationToken: cancellationToken);
+                    }
                 }
             }
             else if (update.Message != null)
-                await botClient.DeleteMessageAsync(update.Message.Chat.Id, update.Message.MessageId, cancellationToken);
+            {
+                await botClient.DeleteMessageAsync(
+                    update.Message.Chat.Id, 
+                    update.Message.MessageId, 
+                    cancellationToken);
+            }
         }
     }
 
@@ -725,18 +935,31 @@ namespace XpAndRepBot
                 try
                 {
                     if (update.Message.ReplyToMessage != null)
-                        await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id,
+                    {
+                        await botClient.SendTextMessageAsync(
+                            chatId: update.Message.Chat.Id,
                             replyToMessageId: update.Message.ReplyToMessage.MessageId,
-                            text: ResponseHandlers.Unwarn(update), cancellationToken: cancellationToken);
+                            text: ResponseHandlers.Unwarn(update), 
+                            cancellationToken: cancellationToken);
+                    }
                 }
                 catch
                 {
-                    await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id,
-                        text: ResponseHandlers.Unwarn(update), cancellationToken: cancellationToken);
+                    {
+                        await botClient.SendTextMessageAsync(
+                            chatId: update.Message.Chat.Id,
+                            text: ResponseHandlers.Unwarn(update),
+                            cancellationToken: cancellationToken);
+                    }
                 }
             }
             else if (update.Message != null)
-                await botClient.DeleteMessageAsync(update.Message.Chat.Id, update.Message.MessageId, cancellationToken);
+            {
+                await botClient.DeleteMessageAsync(
+                    update.Message.Chat.Id, 
+                    update.Message.MessageId, 
+                    cancellationToken);
+            }
         }
     }
 
@@ -758,17 +981,23 @@ namespace XpAndRepBot
                         if (part.EndsWith("d"))
                         {
                             if (int.TryParse(part.TrimEnd('d'), out var result))
+                            {
                                 days = result;
+                            }
                         }
                         else if (part.EndsWith("h"))
                         {
                             if (int.TryParse(part.TrimEnd('h'), out var result))
+                            {
                                 hours = result;
+                            }
                         }
                         else if (part.EndsWith("m"))
                         {
                             if (int.TryParse(part.TrimEnd('m'), out var result))
+                            {
                                 minutes = result;
+                            }
                         }
                     }
 
@@ -788,10 +1017,8 @@ namespace XpAndRepBot
                                         CanSendMediaMessages = false
                                     },
                                     untilDate: muteDate,
-                                    cancellationToken: cancellationToken
-                                );
-                                var userMute =
-                                    db.TableUsers.FirstOrDefault(x => x.Id == update.Message.ReplyToMessage.From.Id);
+                                    cancellationToken: cancellationToken);
+                                var userMute = db.TableUsers.FirstOrDefault(x => x.Id == update.Message.ReplyToMessage.From.Id);
                                 if (userMute != null) userMute.DateMute = muteDate;
                                 await db.SaveChangesAsync(cancellationToken);
                                 try
@@ -799,19 +1026,17 @@ namespace XpAndRepBot
                                     await botClient.SendTextMessageAsync(
                                         chatId: update.Message.Chat.Id,
                                         replyToMessageId: update.Message.ReplyToMessage.MessageId,
-                                        text:
-                                        $"{update.Message.ReplyToMessage.From.FirstName} получил мут на {GetFormattedDuration(days, hours, minutes)} до {muteDate:dd.MM.yyyy HH:mm}",
-                                        cancellationToken: cancellationToken
-                                    );
+                                        text: $"{update.Message.ReplyToMessage.From.FirstName} получил мут на " +
+                                        $"{GetFormattedDuration(days, hours, minutes)} до {muteDate:dd.MM.yyyy HH:mm}",
+                                        cancellationToken: cancellationToken);
                                 }
                                 catch
                                 {
                                     await botClient.SendTextMessageAsync(
                                         chatId: update.Message.Chat.Id,
-                                        text:
-                                        $"{update.Message.ReplyToMessage.From.FirstName} получил мут на {GetFormattedDuration(days, hours, minutes)} минут до {muteDate:dd.MM.yyyy HH:mm}",
-                                        cancellationToken: cancellationToken
-                                    );
+                                        text: $"{update.Message.ReplyToMessage.From.FirstName} получил мут на " +
+                                        $"{GetFormattedDuration(days, hours, minutes)} минут до {muteDate:dd.MM.yyyy HH:mm}",
+                                        cancellationToken: cancellationToken);
                                 }
                             }
                         }
@@ -820,8 +1045,7 @@ namespace XpAndRepBot
                             await botClient.SendTextMessageAsync(
                                 chatId: update.Message.Chat.Id,
                                 text: $"Команда мута введена некорректно",
-                                cancellationToken: cancellationToken
-                            );
+                                cancellationToken: cancellationToken);
                         }
                     }
                     catch
@@ -831,7 +1055,12 @@ namespace XpAndRepBot
                 }
             }
             else if (update.Message != null)
-                await botClient.DeleteMessageAsync(update.Message.Chat.Id, update.Message.MessageId, cancellationToken);
+            {
+                await botClient.DeleteMessageAsync(
+                    update.Message.Chat.Id, 
+                    update.Message.MessageId, 
+                    cancellationToken);
+            }
         }
 
         private static string GetFormattedDuration(int days, int hours, int minutes)
@@ -850,11 +1079,9 @@ namespace XpAndRepBot
                 duration += $"{hours} {hoursWord} ";
             }
 
-            if (minutes > 0)
-            {
-                var minutesWord = GetNounForm(minutes, "минуту", "минуты", "минут");
-                duration += $"{minutes} {minutesWord} ";
-            }
+            if (minutes <= 0) return duration.Trim();
+            var minutesWord = GetNounForm(minutes, "минуту", "минуты", "минут");
+            duration += $"{minutes} {minutesWord} ";
 
             return duration.Trim();
         }
@@ -889,9 +1116,8 @@ namespace XpAndRepBot
                 {
                     var user2 = db.TableUsers.First(x => x.Id == user1.Mariage);
                     var ts = DateTime.Now - user2.DateMariage;
-                    status =
-                        $"🤵🏿 🤵🏿 {user1.Name} состоит в браке с {user2.Name} {ts.Days} d, {ts.Hours} h, {ts.Minutes} m. " +
-                        $"Дата регистрации {user1.DateMariage:yy/MM/dd HH:mm:ss}";
+                    status = $"🤵🏿 🤵🏿 {user1.Name} состоит в браке с {user2.Name} {ts.Days} d, {ts.Hours} h, {ts.Minutes} m. " +
+                             $"Дата регистрации {user1.DateMariage:yy/MM/dd HH:mm:ss}";
                 }
             }
             else
@@ -902,23 +1128,31 @@ namespace XpAndRepBot
                 {
                     var user2 = db.TableUsers.First(x => x.Id == user1.Mariage);
                     var ts = DateTime.Now - user2.DateMariage;
-                    status =
-                        $"🤵🏿 🤵🏿 {user1.Name} состоит в браке с {user2.Name} {ts.Days} d, {ts.Hours} h, {ts.Minutes} m. " +
-                        $"Дата регистрации {user1.DateMariage:yy/MM/dd HH:mm:ss}";
+                    status = $"🤵🏿 🤵🏿 {user1.Name} состоит в браке с {user2.Name} {ts.Days} d, {ts.Hours} h, {ts.Minutes} m. " +
+                             $"Дата регистрации {user1.DateMariage:yy/MM/dd HH:mm:ss}";
                 }
             }
 
             try
             {
                 if (update.Message != null)
-                    await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id,
-                        replyToMessageId: update.Message.MessageId, text: status, cancellationToken: cancellationToken);
+                {
+                    await botClient.SendTextMessageAsync(
+                        chatId: update.Message.Chat.Id,
+                        replyToMessageId: update.Message.MessageId, 
+                        text: status, 
+                        cancellationToken: cancellationToken);
+                }
             }
             catch
             {
                 if (update.Message != null)
-                    await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, text: status,
+                {
+                    await botClient.SendTextMessageAsync(
+                        chatId: update.Message.Chat.Id, 
+                        text: status,
                         cancellationToken: cancellationToken);
+                }
             }
         }
     }
@@ -934,12 +1168,20 @@ namespace XpAndRepBot
                 var user1 = db.TableUsers.First(x => x.Id == update.Message.From.Id);
                 var user2 = db.TableUsers.First(x => x.Id == update.Message.ReplyToMessage.From.Id);
                 if (user1.Mariage != 0)
-                    await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, text: "Вы уже в браке",
+                {
+                    await botClient.SendTextMessageAsync(
+                        chatId: update.Message.Chat.Id, 
+                        text: "Вы уже в браке",
                         cancellationToken: cancellationToken);
+                }
                 else if (user2.Mariage != 0)
-                    await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id,
-                        replyToMessageId: update.Message.MessageId, text: $"{user2.Name} уже в браке",
+                {
+                    await botClient.SendTextMessageAsync(
+                        chatId: update.Message.Chat.Id,
+                        replyToMessageId: update.Message.MessageId, 
+                        text: $"{user2.Name} уже в браке",
                         cancellationToken: cancellationToken);
+                }
                 else
                 {
                     var inlineKeyboard = new InlineKeyboardMarkup(new[]
@@ -950,18 +1192,22 @@ namespace XpAndRepBot
                             InlineKeyboardButton.WithCallbackData("Да", $"my{user1.Id}"),
                         }
                     });
-                    await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, replyMarkup: inlineKeyboard,
+                    await botClient.SendTextMessageAsync(
+                        chatId: update.Message.Chat.Id, 
+                        replyMarkup: inlineKeyboard,
                         replyToMessageId: update.Message.ReplyToMessage.MessageId,
-                        text:
-                        $"💖 {user1.Name} делает вам предложение руки и сердца. Согласны ли вы вступить в брак с {user1.Name}?",
+                        text: $"💖 {user1.Name} делает вам предложение руки и сердца. Согласны ли вы вступить в брак с {user1.Name}?",
                         cancellationToken: cancellationToken);
                 }
             }
             else if (update.Message != null)
-                await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id,
+            {
+                await botClient.SendTextMessageAsync(
+                    chatId: update.Message.Chat.Id,
                     replyToMessageId: update.Message.MessageId,
                     text: "Ответьте на сообщение того, с кем хотите заключить брак",
                     cancellationToken: cancellationToken);
+            }
         }
     }
 
@@ -974,8 +1220,12 @@ namespace XpAndRepBot
             if (user1.Mariage == 0)
             {
                 if (update.Message != null)
-                    await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, text: "Вы не состоите в браке",
+                {
+                    await botClient.SendTextMessageAsync(
+                        chatId: update.Message.Chat.Id, 
+                        text: "Вы не состоите в браке",
                         cancellationToken: cancellationToken);
+                }
             }
             else
             {
@@ -984,12 +1234,15 @@ namespace XpAndRepBot
                 user2.Mariage = 0;
                 var ts = DateTime.Now - user2.DateMariage;
                 await db.SaveChangesAsync(cancellationToken);
-                var mes =
-                    $"💔 {user2.Name} сожалеем, но {user1.Name} подал на развод. Ваш брак был зарегистрирован " +
-                    $"{user1.DateMariage:yy/MM/dd HH:mm:ss} и просуществовал {ts.Days} d, {ts.Hours} h, {ts.Minutes} m";
+                var mes = $"💔 {user2.Name} сожалеем, но {user1.Name} подал на развод. Ваш брак был зарегистрирован " +
+                               $"{user1.DateMariage:yy/MM/dd HH:mm:ss} и просуществовал {ts.Days} d, {ts.Hours} h, {ts.Minutes} m";
                 if (update.Message != null)
-                    await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id,
-                        replyToMessageId: update.Message.MessageId, text: mes, cancellationToken: cancellationToken);
+                {
+                    await botClient.SendTextMessageAsync(
+                        chatId: update.Message.Chat.Id,
+                        replyToMessageId: update.Message.MessageId, 
+                        text: mes, cancellationToken: cancellationToken);
+                }
             }
         }
     }
@@ -1001,16 +1254,23 @@ namespace XpAndRepBot
             try
             {
                 if (update.Message != null)
-                    await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id,
-                        replyToMessageId: update.Message.MessageId, text: ResponseHandlers.Mariages(),
+                {
+                    await botClient.SendTextMessageAsync(
+                        chatId: update.Message.Chat.Id,
+                        replyToMessageId: update.Message.MessageId, 
+                        text: ResponseHandlers.Mariages(),
                         cancellationToken: cancellationToken);
+                }
             }
             catch
             {
                 if (update.Message != null)
-                    await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id,
+                {
+                    await botClient.SendTextMessageAsync(
+                        chatId: update.Message.Chat.Id,
                         text: ResponseHandlers.Mariages(),
                         cancellationToken: cancellationToken);
+                }
             }
         }
     }
@@ -1023,29 +1283,32 @@ namespace XpAndRepBot
             {
                 var mes = update.Message.Text;
                 if (mes == "/w")
-                    await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, text: "Вы не написали слово",
+                {
+                    await botClient.SendTextMessageAsync(
+                        chatId: update.Message.Chat.Id, 
+                        text: "Вы не написали слово",
                         cancellationToken: cancellationToken);
+                }
                 else
                 {
                     if (mes != null)
                     {
                         mes = mes.Replace("/w ", "");
-                        if (update.Message.ReplyToMessage is { From.IsBot: false } &&
-                            update.Message.ReplyToMessage.From.Id != 777000)
+                        if (update.Message.ReplyToMessage is { From.IsBot: false } && update.Message.ReplyToMessage.From.Id != 777000)
                         {
                             try
                             {
-                                await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id,
+                                await botClient.SendTextMessageAsync(
+                                    chatId: update.Message.Chat.Id,
                                     replyToMessageId: update.Message.MessageId,
-                                    text: await ResponseHandlers.PersonalWord(update.Message.ReplyToMessage.From.Id,
-                                        mes),
+                                    text: await ResponseHandlers.PersonalWord(update.Message.ReplyToMessage.From.Id,mes),
                                     cancellationToken: cancellationToken);
                             }
                             catch
                             {
-                                await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id,
-                                    text: await ResponseHandlers.PersonalWord(update.Message.ReplyToMessage.From.Id,
-                                        mes),
+                                await botClient.SendTextMessageAsync(
+                                    chatId: update.Message.Chat.Id,
+                                    text: await ResponseHandlers.PersonalWord(update.Message.ReplyToMessage.From.Id, mes),
                                     cancellationToken: cancellationToken);
                             }
                         }
@@ -1053,14 +1316,17 @@ namespace XpAndRepBot
                         {
                             try
                             {
-                                await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id,
+                                await botClient.SendTextMessageAsync(
+                                    chatId: update.Message.Chat.Id,
                                     replyToMessageId: update.Message.MessageId, text: await ResponseHandlers.Word(mes),
                                     cancellationToken: cancellationToken);
                             }
                             catch
                             {
-                                await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id,
-                                    text: await ResponseHandlers.Word(mes), cancellationToken: cancellationToken);
+                                await botClient.SendTextMessageAsync(
+                                    chatId: update.Message.Chat.Id,
+                                    text: await ResponseHandlers.Word(mes), 
+                                    cancellationToken: cancellationToken);
                             }
                         }
                     }
