@@ -772,54 +772,61 @@ namespace XpAndRepBot
                         }
                     }
 
-                    if (days != 0 || hours != 0 || minutes != 0)
+                    try
                     {
-                        var muteDate = DateTime.Now.AddDays(days).AddHours(hours).AddMinutes(minutes);
-                        if (update.Message.ReplyToMessage != null)
+                        if (days != 0 || hours != 0 || minutes != 0)
                         {
-                            await botClient.RestrictChatMemberAsync(
-                                chatId: update.Message.Chat.Id,
-                                userId: update.Message.ReplyToMessage.From.Id,
-                                new ChatPermissions
+                            var muteDate = DateTime.Now.AddDays(days).AddHours(hours).AddMinutes(minutes);
+                            if (update.Message.ReplyToMessage != null)
+                            {
+                                await botClient.RestrictChatMemberAsync(
+                                    chatId: update.Message.Chat.Id,
+                                    userId: update.Message.ReplyToMessage.From.Id,
+                                    new ChatPermissions
+                                    {
+                                        CanSendMessages = false,
+                                        CanSendMediaMessages = false
+                                    },
+                                    untilDate: muteDate,
+                                    cancellationToken: cancellationToken
+                                );
+                                var userMute =
+                                    db.TableUsers.FirstOrDefault(x => x.Id == update.Message.ReplyToMessage.From.Id);
+                                if (userMute != null) userMute.DateMute = muteDate;
+                                await db.SaveChangesAsync(cancellationToken);
+                                try
                                 {
-                                    CanSendMessages = false,
-                                    CanSendMediaMessages = false
-                                },
-                                untilDate: muteDate,
-                                cancellationToken: cancellationToken
-                            );
-                            var userMute =
-                                db.TableUsers.FirstOrDefault(x => x.Id == update.Message.ReplyToMessage.From.Id);
-                            if (userMute != null) userMute.DateMute = muteDate;
-                            await db.SaveChangesAsync(cancellationToken);
-                            try
-                            {
-                                await botClient.SendTextMessageAsync(
-                                    chatId: update.Message.Chat.Id,
-                                    replyToMessageId: update.Message.ReplyToMessage.MessageId,
-                                    text:
-                                    $"{update.Message.ReplyToMessage.From.FirstName} получил мут на {GetFormattedDuration(days, hours, minutes)} до {muteDate:dd.MM.yyyy HH:mm}",
-                                    cancellationToken: cancellationToken
-                                );
-                            }
-                            catch
-                            {
-                                await botClient.SendTextMessageAsync(
-                                    chatId: update.Message.Chat.Id,
-                                    text:
-                                    $"{update.Message.ReplyToMessage.From.FirstName} получил мут на {GetFormattedDuration(days, hours, minutes)} минут до {muteDate:dd.MM.yyyy HH:mm}",
-                                    cancellationToken: cancellationToken
-                                );
+                                    await botClient.SendTextMessageAsync(
+                                        chatId: update.Message.Chat.Id,
+                                        replyToMessageId: update.Message.ReplyToMessage.MessageId,
+                                        text:
+                                        $"{update.Message.ReplyToMessage.From.FirstName} получил мут на {GetFormattedDuration(days, hours, minutes)} до {muteDate:dd.MM.yyyy HH:mm}",
+                                        cancellationToken: cancellationToken
+                                    );
+                                }
+                                catch
+                                {
+                                    await botClient.SendTextMessageAsync(
+                                        chatId: update.Message.Chat.Id,
+                                        text:
+                                        $"{update.Message.ReplyToMessage.From.FirstName} получил мут на {GetFormattedDuration(days, hours, minutes)} минут до {muteDate:dd.MM.yyyy HH:mm}",
+                                        cancellationToken: cancellationToken
+                                    );
+                                }
                             }
                         }
+                        else
+                        {
+                            await botClient.SendTextMessageAsync(
+                                chatId: update.Message.Chat.Id,
+                                text: $"Команда мута введена некорректно",
+                                cancellationToken: cancellationToken
+                            );
+                        }
                     }
-                    else
+                    catch
                     {
-                        await botClient.SendTextMessageAsync(
-                            chatId: update.Message.Chat.Id,
-                            text: $"Команда мута введена некорректно",
-                            cancellationToken: cancellationToken
-                        );
+                        // ignored
                     }
                 }
             }
