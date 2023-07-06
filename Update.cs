@@ -78,6 +78,7 @@ namespace XpAndRepBot
                 if (update.Message.From != null)
                 {
                     var user = await GetOrCreateUser(db, update);
+                    await UpdateCheckPermissions(user, update, botClient, cancellationToken);
                     await UpdateUserLastMessageTime(db, user, update, cancellationToken);
                     await HandleNewChatMembers(botClient, update, cancellationToken);
                     await HandleUserWarns(botClient, db, user, update, cancellationToken);
@@ -115,6 +116,35 @@ namespace XpAndRepBot
             }
 
             return Task.FromResult(user);
+        }
+        
+        private static async Task UpdateCheckPermissions(Users user, Update update, ITelegramBotClient botClient, CancellationToken cancellationToken)
+        {
+            if (update.Message is { From: not null })
+            {
+                try
+                {
+                    if (user.Lvl < 10)
+                    {
+                        await botClient.RestrictChatMemberAsync(update.Message.Chat.Id, update.Message.From.Id,
+                            new ChatPermissions
+                            {
+                                CanSendMessages = true,
+                                CanSendMediaMessages = true,
+                                CanSendOtherMessages = false,
+                                CanSendPolls = true,
+                                CanAddWebPagePreviews = true,
+                                CanChangeInfo = true,
+                                CanInviteUsers = true,
+                                CanPinMessages = true
+                            }, cancellationToken: cancellationToken);
+                    }
+                }
+                catch
+                {
+                    // ignored
+                }
+            }
         }
 
         private static async Task UpdateUserLastMessageTime(DbContext db, Users user, Update update, CancellationToken cancellationToken)
@@ -249,7 +279,7 @@ namespace XpAndRepBot
         {
             var messageText = GetMessageText(update);
             var match = Regex.Match(messageText, @"^.*?([\w/]+)");
-            if (Commands.ContainsKey(match.Value.ToLower()))
+            if (Commands.ContainsKey(match.Value.ToLower()) && update.Message is not { ReplyToMessage.From.Id: 777000 })
             {
                 var command = Commands[match.Value.ToLower()];
                 await command.ExecuteAsync(botClient, update, cancellationToken);
@@ -275,23 +305,32 @@ namespace XpAndRepBot
 
         private static async Task HandleNfc(ITelegramBotClient botClient, Update update, Users user, CancellationToken cancellationToken)
         {
-            if (user.Nfc == true)
+            const string filePath = "bw.txt";
+            var words = await ReadFileLinesToLower(filePath);
+            var messageWords = GetMessageText(update)
+                .Split(new[] { ' ', ',', '.', '!', '?' }, StringSplitOptions.RemoveEmptyEntries);
+            var containsWord = messageWords.Any(w => words.Contains(w.ToLower()));
+            if (containsWord)
             {
-                const string filePath = "bw.txt";
-                var words = await ReadFileLinesToLower(filePath);
-                var messageWords = GetMessageText(update)
-                    .Split(new[] { ' ', ',', '.', '!', '?' }, StringSplitOptions.RemoveEmptyEntries);
-                var containsWord = messageWords.Any(w => words.Contains(w.ToLower()));
-                if (containsWord)
+                try
                 {
-                    if (update.Message != null)
+                    if (update.Message != null && user.Nfc == true)
                     {
                         await botClient.SendTextMessageAsync(
                             chatId: update.Message.Chat.Id,
                             text: await ChatHandlers.Nfc(user, botClient, cancellationToken),
                             cancellationToken: cancellationToken);
-                        
                     }
+
+                    if (update.Message is { ReplyToMessage.From.Id: 777000 }) //delete forbidden words
+                    {
+                        await botClient.DeleteMessageAsync(update.Message.Chat.Id, update.Message.MessageId,
+                            cancellationToken);
+                    }
+                }
+                catch 
+                {
+                    //ignored
                 }
             }
         }
@@ -326,11 +365,17 @@ namespace XpAndRepBot
             {
                 if (update.Message != null)
                 {
-                    await botClient.DeleteMessageAsync(
-                        update.Message.Chat.Id, 
-                        update.Message.MessageId,
-                        cancellationToken);
-                    
+                    try
+                    {
+                        await botClient.DeleteMessageAsync(
+                            update.Message.Chat.Id,
+                            update.Message.MessageId,
+                            cancellationToken);
+                    }
+                    catch
+                    {
+                        //ignored
+                    }
                 }
             }
         }

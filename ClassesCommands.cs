@@ -80,6 +80,7 @@ namespace XpAndRepBot
     {
         public async Task ExecuteAsync(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken)
         {
+            var replyId = -1;
             var inlineKeyboard = new InlineKeyboardMarkup(new[]
             {
                 new[]
@@ -118,32 +119,37 @@ namespace XpAndRepBot
                 }
                 case { ReplyToMessage.From.IsBot: false } when update.Message.ReplyToMessage.From.Id != 777000:
                     userId = update.Message.ReplyToMessage.From.Id;
+                    replyId = update.Message.ReplyToMessage.MessageId;
                     break;
                 case { From: not null }:
                     userId = update.Message.From.Id;
+                    replyId = update.Message.MessageId;
                     break;
             }
 
-            try
+            if (userId != 0)
             {
-                if (update.Message != null)
+                try
                 {
-                    await botClient.SendTextMessageAsync(
-                        chatId: update.Message.Chat.Id, 
-                        replyMarkup: inlineKeyboard,
-                        replyToMessageId: update.Message.MessageId, 
-                        text: await ResponseHandlers.Me(userId),
-                        cancellationToken: cancellationToken);
+                    if (update.Message != null)
+                    {
+                        await botClient.SendTextMessageAsync(
+                            chatId: update.Message.Chat.Id,
+                            replyMarkup: inlineKeyboard,
+                            replyToMessageId: replyId,
+                            text: await ResponseHandlers.Me(userId),
+                            cancellationToken: cancellationToken);
+                    }
                 }
-            }
-            catch
-            {
-                if (update.Message != null)
+                catch
                 {
-                    await botClient.SendTextMessageAsync(
-                        chatId: update.Message.Chat.Id,
-                        text: await ResponseHandlers.Me(userId), 
-                        cancellationToken: cancellationToken);
+                    if (update.Message != null)
+                    {
+                        await botClient.SendTextMessageAsync(
+                            chatId: update.Message.Chat.Id,
+                            text: await ResponseHandlers.Me(userId),
+                            cancellationToken: cancellationToken);
+                    }
                 }
             }
         }
@@ -763,10 +769,19 @@ namespace XpAndRepBot
                 }
             }
             else if (update.Message != null)
-                await botClient.DeleteMessageAsync(
-                    update.Message.Chat.Id, 
-                    update.Message.MessageId, 
-                    cancellationToken);
+            {
+                try
+                {
+                    await botClient.DeleteMessageAsync(
+                        update.Message.Chat.Id,
+                        update.Message.MessageId,
+                        cancellationToken);
+                }
+                catch
+                {
+                    // ignored
+                }
+            }
         }
     }
 
@@ -805,10 +820,17 @@ namespace XpAndRepBot
             }
             else if (update.Message != null)
             {
-                await botClient.DeleteMessageAsync(
-                    update.Message.Chat.Id, 
-                    update.Message.MessageId, 
-                    cancellationToken);
+                try
+                {
+                    await botClient.DeleteMessageAsync(
+                        update.Message.Chat.Id,
+                        update.Message.MessageId,
+                        cancellationToken);
+                }
+                catch
+                {
+                    // ignored
+                }
             }
         }
     }
@@ -875,10 +897,17 @@ namespace XpAndRepBot
             }
             else if (update.Message != null)
             {
-                await botClient.DeleteMessageAsync(
-                    update.Message.Chat.Id, 
-                    update.Message.MessageId, 
-                    cancellationToken);
+                try
+                {
+                    await botClient.DeleteMessageAsync(
+                        update.Message.Chat.Id,
+                        update.Message.MessageId,
+                        cancellationToken);
+                }
+                catch
+                {
+                    // ignored
+                }
             }
         }
     }
@@ -915,10 +944,17 @@ namespace XpAndRepBot
             }
             else if (update.Message != null)
             {
-                await botClient.DeleteMessageAsync(
-                    update.Message.Chat.Id, 
-                    update.Message.MessageId, 
-                    cancellationToken);
+                try
+                {
+                    await botClient.DeleteMessageAsync(
+                        update.Message.Chat.Id,
+                        update.Message.MessageId,
+                        cancellationToken);
+                }
+                catch
+                {
+                    // ignored
+                }
             }
         }
     }
@@ -955,10 +991,17 @@ namespace XpAndRepBot
             }
             else if (update.Message != null)
             {
-                await botClient.DeleteMessageAsync(
-                    update.Message.Chat.Id, 
-                    update.Message.MessageId, 
-                    cancellationToken);
+                try
+                {
+                    await botClient.DeleteMessageAsync(
+                        update.Message.Chat.Id,
+                        update.Message.MessageId,
+                        cancellationToken);
+                }
+                catch
+                {
+                    // ignored
+                }
             }
         }
     }
@@ -972,7 +1015,7 @@ namespace XpAndRepBot
             if (update.Message is { ReplyToMessage.From: not null, From: not null } && user != null && 
                 update.Message.From.Id != update.Message.ReplyToMessage?.From.Id)
             {
-                if (update.Message.Text != null)
+                if (update.Message.Text is { Length: > 6 })
                 {
                     var parts = update.Message.Text[6..].Split(' ');
                     int days = 0, hours = 0, minutes = 0;
@@ -1056,10 +1099,17 @@ namespace XpAndRepBot
             }
             else if (update.Message != null)
             {
-                await botClient.DeleteMessageAsync(
-                    update.Message.Chat.Id, 
-                    update.Message.MessageId, 
-                    cancellationToken);
+                try
+                {
+                    await botClient.DeleteMessageAsync(
+                        update.Message.Chat.Id,
+                        update.Message.MessageId,
+                        cancellationToken);
+                }
+                catch
+                {
+                    // ignored
+                }
             }
         }
 

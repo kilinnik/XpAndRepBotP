@@ -482,36 +482,31 @@ namespace XpAndRepBot
             ITelegramBotClient botClient, long chatId, CancellationToken cancellationToken)
         {
             var userId = long.Parse(option[2..]);
-            var flag = false;
-            if (callbackQuery.From.Id == userId)
+            if (callbackQuery.From.Id != userId) return false;
+            if (option.Contains('y'))
             {
-                if (option.Contains('y'))
+                await botClient.RestrictChatMemberAsync(chatId: chatId, userId, new ChatPermissions
                 {
-                    await botClient.RestrictChatMemberAsync(chatId: chatId, userId, new ChatPermissions
-                    {
-                        CanSendMessages = true,
-                        CanSendMediaMessages = true,
-                        CanSendOtherMessages = true,
-                        CanSendPolls = true,
-                        CanAddWebPagePreviews = true,
-                        CanChangeInfo = true,
-                        CanInviteUsers = true,
-                        CanPinMessages = true,
-                    }, cancellationToken: cancellationToken);
-                    await botClient.SendTextMessageAsync(chatId: chatId,
-                        text: $"Привет, {callbackQuery.From.FirstName}.{Greeting}",
-                        cancellationToken: cancellationToken);
-                }
-                else
-                {
-                    await botClient.BanChatMemberAsync(chatId: chatId, userId: userId,
-                        cancellationToken: cancellationToken);
-                }
-
-                flag = true;
+                    CanSendMessages = true,
+                    CanSendMediaMessages = true,
+                    CanSendOtherMessages = true,
+                    CanSendPolls = true,
+                    CanAddWebPagePreviews = true,
+                    CanChangeInfo = true,
+                    CanInviteUsers = true,
+                    CanPinMessages = true
+                }, cancellationToken: cancellationToken);
+                await botClient.SendTextMessageAsync(chatId: chatId,
+                    text: $"Привет, {callbackQuery.From.FirstName}.{Greeting}",
+                    cancellationToken: cancellationToken);
+            }
+            else
+            {
+                await botClient.BanChatMemberAsync(chatId: chatId, userId: userId,
+                    cancellationToken: cancellationToken);
             }
 
-            return flag;
+            return true;
         }
     }
 }

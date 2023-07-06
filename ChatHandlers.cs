@@ -22,10 +22,26 @@ namespace XpAndRepBot
             {
                 user.Lvl++;
                 user.CurXp -= Сalculation.GenerateXpForLevel(user.Lvl);
-                if (user.Lvl > 4)
-                    if (update.Message != null)
-                        await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id,
-                            text: $"{user.Name} получает {user.Lvl} lvl", cancellationToken: cancellationToken);
+                if (user.Lvl <= 4) continue;
+                if (update.Message == null) continue;
+                await botClient.SendTextMessageAsync(
+                    chatId: update.Message.Chat.Id,
+                    text: $"{user.Name} получает {user.Lvl} lvl", 
+                    cancellationToken: cancellationToken);
+                if (user.Lvl != 10) continue;
+                if (update.Message.From != null)
+                    await botClient.RestrictChatMemberAsync(update.Message.Chat.Id, update.Message.From.Id,
+                        new ChatPermissions
+                        {
+                            CanSendMessages = true,
+                            CanSendMediaMessages = true,
+                            CanSendOtherMessages = true,
+                            CanSendPolls = true,
+                            CanAddWebPagePreviews = true,
+                            CanChangeInfo = true,
+                            CanInviteUsers = true,
+                            CanPinMessages = true
+                        }, cancellationToken: cancellationToken);
             }
             await db.SaveChangesAsync(cancellationToken);
         }
@@ -103,67 +119,62 @@ namespace XpAndRepBot
         public static async Task NewMember(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken)
         {
             await using var db = new InfoContext();
-            if (update.Message != null)
-            {
-                var newMembers = update.Message.NewChatMembers;
-                if (newMembers != null)
-                    foreach (var member in newMembers)
+            var newMembers = update.Message?.NewChatMembers;
+            if (newMembers != null)
+                foreach (var member in newMembers)
+                {
+                    var userMute = db.TableUsers.FirstOrDefault(x => x.Id == member.Id);
+                    if (userMute == null || member.IsBot || DateTime.Now < userMute.DateMute) continue;
+                    Random random = new();
+                    var array = new int[8];
+                    for (var i = 0; i < array.Length; i++)
                     {
-                        var userMute = db.TableUsers.FirstOrDefault(x => x.Id == member.Id);
-                        if (userMute != null && !member.IsBot && DateTime.Now >= userMute.DateMute)
-                        {
-                            Random random = new();
-                            var array = new int[8];
-                            for (var i = 0; i < array.Length; i++)
-                            {
-                                array[i] = i;
-                            }
-
-                            for (var i = 0; i < array.Length; i++)
-                            {
-                                var randomIndex = random.Next(i, array.Length);
-                                (array[randomIndex], array[i]) = (array[i], array[randomIndex]);
-                            }
-
-                            var randomNumber = random.Next(0, 8);
-                            var buttons = new InlineKeyboardButton[1][];
-                            buttons[0] = new InlineKeyboardButton[array.Length];
-                            for (var i = 0; i < array.Length; i++)
-                            {
-                                if (array[i] != randomNumber)
-                                    buttons[0][i] = InlineKeyboardButton.WithCallbackData(array[i].ToString(),
-                                        $"{array[i]}n{member.Id}");
-                                else
-                                    buttons[0][i] = InlineKeyboardButton.WithCallbackData(array[i].ToString(),
-                                        $"{array[i]}y{member.Id}");
-                            }
-
-                            InlineKeyboardMarkup inlineKeyboard = new(buttons);
-                            await botClient.RestrictChatMemberAsync(chatId: update.Message.Chat.Id, member.Id,
-                                new ChatPermissions
-                                {
-                                    CanSendMessages = false,
-                                    CanSendMediaMessages = false,
-                                }, cancellationToken: cancellationToken);
-                            try
-                            {
-                                await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id,
-                                    replyMarkup: inlineKeyboard, replyToMessageId: update.Message.MessageId,
-                                    text:
-                                    $"Нажми на {randomNumber}, чтобы можно было писать. Бан за неверный ответ (press {randomNumber} to be able to write. Ban for a wrong answer).",
-                                    cancellationToken: cancellationToken);
-                            }
-                            catch
-                            {
-                                await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id,
-                                    replyMarkup: inlineKeyboard,
-                                    text:
-                                    $"Нажми на {randomNumber}, чтобы можно было писать. Бан за неверный ответ (press {randomNumber} to be able to write. Ban for a wrong answer).",
-                                    cancellationToken: cancellationToken);
-                            }
-                        }
+                        array[i] = i;
                     }
-            }
+
+                    for (var i = 0; i < array.Length; i++)
+                    {
+                        var randomIndex = random.Next(i, array.Length);
+                        (array[randomIndex], array[i]) = (array[i], array[randomIndex]);
+                    }
+
+                    var randomNumber = random.Next(0, 8);
+                    var buttons = new InlineKeyboardButton[1][];
+                    buttons[0] = new InlineKeyboardButton[array.Length];
+                    for (var i = 0; i < array.Length; i++)
+                    {
+                        if (array[i] != randomNumber)
+                            buttons[0][i] = InlineKeyboardButton.WithCallbackData(array[i].ToString(),
+                                $"{array[i]}n{member.Id}");
+                        else
+                            buttons[0][i] = InlineKeyboardButton.WithCallbackData(array[i].ToString(),
+                                $"{array[i]}y{member.Id}");
+                    }
+
+                    InlineKeyboardMarkup inlineKeyboard = new(buttons);
+                    await botClient.RestrictChatMemberAsync(chatId: update.Message.Chat.Id, member.Id,
+                        new ChatPermissions
+                        {
+                            CanSendMessages = false,
+                            CanSendMediaMessages = false,
+                        }, cancellationToken: cancellationToken);
+                    try
+                    {
+                        await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id,
+                            replyMarkup: inlineKeyboard, replyToMessageId: update.Message.MessageId,
+                            text:
+                            $"Нажми на {randomNumber}, чтобы можно было писать. Бан за неверный ответ (press {randomNumber} to be able to write. Ban for a wrong answer).",
+                            cancellationToken: cancellationToken);
+                    }
+                    catch
+                    {
+                        await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id,
+                            replyMarkup: inlineKeyboard,
+                            text:
+                            $"Нажми на {randomNumber}, чтобы можно было писать. Бан за неверный ответ (press {randomNumber} to be able to write. Ban for a wrong answer).",
+                            cancellationToken: cancellationToken);
+                    }
+                }
         }
 
         public static async Task ReputationUp(ITelegramBotClient botClient, Update update, InfoContext db, string mes, CancellationToken cancellationToken)
@@ -196,12 +207,12 @@ namespace XpAndRepBot
                 {
                     await botClient.DeleteMessageAsync(update.Message.Chat.Id, update.Message.MessageId, cancellationToken);
                 }
-                else if (update.Message?.Animation != null && user.Lvl < 10) //delete gif
+                else if (update.Message?.Animation != null && user.Lvl < 10 || update.Message is { ReplyToMessage.From.Id: 777000 }) //delete gif
                 {
-                    if (flag) await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, replyToMessageId: update.Message.MessageId, text: "Гифки с 10 лвла.\n/m - посмотреть свой лвл", cancellationToken: cancellationToken);
+                    if (flag && update.Message is not { ReplyToMessage.From.Id: 777000 }) await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, replyToMessageId: update.Message.MessageId, text: "Гифки с 10 лвла.\n/m - посмотреть свой лвл", cancellationToken: cancellationToken);
                     await botClient.DeleteMessageAsync(update.Message.Chat.Id, update.Message.MessageId, cancellationToken);
                 }
-                else if (update.Message?.Sticker != null && user.Lvl < 15) //delete sticker
+                else if (update.Message?.Sticker != null && user.Lvl < 15 || update.Message is { ReplyToMessage.From.Id: 777000 }) //delete sticker
                 {
                     var sticker = update.Message.Sticker;
                     if (sticker.SetName != null)
@@ -209,14 +220,14 @@ namespace XpAndRepBot
                         var set = await botClient.GetStickerSetAsync(sticker.SetName, cancellationToken: cancellationToken);
                         if (set.Name != "UnoWarStickers" && set.Name != "UsedWorm_by_fStikBot")
                         {
-                            if (flag) await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, replyToMessageId: update.Message.MessageId, text: "Стикеры с 15 лвла, кроме стикеров чата и Уно.\n/m - посмотреть свой лвл", cancellationToken: cancellationToken);
+                            if (flag && update.Message is not { ReplyToMessage.From.Id: 777000 }) await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, replyToMessageId: update.Message.MessageId, text: "Стикеры с 15 лвла, кроме стикеров чата и Уно.\n/m - посмотреть свой лвл", cancellationToken: cancellationToken);
                             await botClient.DeleteMessageAsync(update.Message.Chat.Id, update.Message.MessageId, cancellationToken);
                         }
                     }
                 }
                 else if (update.Message?.Poll != null && user.Lvl < 20) //delete poll
                 {
-                    if (flag) await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, replyToMessageId: update.Message.MessageId, text: "Опросы с 20 лвла.\n/m - посмотреть свой лвл", cancellationToken: cancellationToken);
+                    if (flag && update.Message is not { ReplyToMessage.From.Id: 777000 }) await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, replyToMessageId: update.Message.MessageId, text: "Опросы с 20 лвла.\n/m - посмотреть свой лвл", cancellationToken: cancellationToken);
                     await botClient.DeleteMessageAsync(update.Message.Chat.Id, update.Message.MessageId, cancellationToken);
                 }
             }
