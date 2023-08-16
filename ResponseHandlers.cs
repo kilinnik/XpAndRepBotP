@@ -3,8 +3,6 @@ using Telegram.Bot.Types;
 using System.Linq;
 using System.Collections.Generic;
 using System.Text;
-using Newtonsoft.Json.Linq;
-using System.Net.Http;
 using System.Text.RegularExpressions;
 using OpenAI.GPT3.Interfaces;
 using OpenAI.GPT3.ObjectModels;
@@ -15,7 +13,6 @@ using System.Net;
 using Telegram.Bot.Types.InputFiles;
 using System.Data.SqlClient;
 using static XpAndRepBot.Consts;
-using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using Mirror.ChatGpt;
 using Mirror.ChatGpt.Models.ChatGpt;
@@ -42,7 +39,7 @@ namespace XpAndRepBot
                                            $"\n🎖 Место в топе по лексикону: {await Сalculation.PlaceLexicon(user)}" +
                                            $"\n🤬 Кол-во варнов: {user.Warns}/3" +
                                            $"\n🗓 Дата последнего варна/снятия варна: {user.LastTime:yyyy-MM-dd}\n");
-            await using var connection = new SqlConnection(ConStringDbLexicon);
+            await using var connection = new SqlConnection(ConnectionString);
             await connection.OpenAsync();
             await using var command =
                 new SqlCommand($"SELECT COUNT(*) FROM dbo.TableUsersLexicons where [UserID] = {user.Id}", connection);
@@ -155,7 +152,7 @@ namespace XpAndRepBot
             }
 
             if (offset == 0) return await Me(idUser);
-            await using var connection = new SqlConnection(ConStringDbLexicon);
+            await using var connection = new SqlConnection(ConnectionString);
             var result = new StringBuilder();
             var rows = await connection.QueryAsync<Words>($"select * from dbo.TableUsersLexicons " +
                                                           $"where [UserID] = {user.Id} ORDER BY [Count] DESC OFFSET @Offset " +
@@ -170,7 +167,7 @@ namespace XpAndRepBot
 
         public static async Task<string> TopWords(int number)
         {
-            await using SqlConnection connection = new(ConStringDbLexicon);
+            await using SqlConnection connection = new(ConnectionString);
             await connection.OpenAsync();
             SqlCommand command =
                 new(
@@ -189,7 +186,7 @@ namespace XpAndRepBot
 
         public static async Task<string> TopLexicon(int number)
         {
-            await using SqlConnection connection = new(ConStringDbLexicon);
+            await using SqlConnection connection = new(ConnectionString);
             await connection.OpenAsync();
             SqlCommand command =
                 new(
@@ -212,7 +209,7 @@ namespace XpAndRepBot
         {
             await using var db = new InfoContext();
             var user = db.TableUsers.First(x => x.Id == id);
-            await using var connection = new SqlConnection(ConStringDbLexicon);
+            await using var connection = new SqlConnection(ConnectionString);
             await connection.OpenAsync();
             SqlCommand command =
                 new(
@@ -233,7 +230,7 @@ namespace XpAndRepBot
 
         public static async Task<string> Word(string word)
         {
-            await using SqlConnection connection = new(ConStringDbLexicon);
+            await using SqlConnection connection = new(ConnectionString);
             await connection.OpenAsync();
             SqlCommand command = new($"select * from ( SELECT ROW_NUMBER() OVER (ORDER BY SUM([Count]) DESC) " +
                                      $"AS RowNumber, [Word], SUM([Count]) AS WordCount FROM dbo.TableUsersLexicons " +
@@ -334,35 +331,16 @@ namespace XpAndRepBot
             return null;
         }
 
-        public static async Task<string> RequestBalaboba(string str)
-        {
-            var url = "https://yandex.ru/lab/api/yalm/text3";
-            var json = JsonSerializer.Serialize(new { filter = 1, intro = 0, query = str });
-            using var client = new HttpClient();
-            using var request = new HttpRequestMessage(HttpMethod.Post, url);
-            request.Content = new StringContent(json, Encoding.UTF8, "application/json");
-            using var response = await client.SendAsync(request);
-            var responseContent = await response.Content.ReadAsStringAsync();
-            var result = JObject.Parse(responseContent);
-            string answer;
-            try
-            {
-                answer = result["text"]?.ToString();
-            }
-            catch
-            {
-                answer = "Произошла ошибка. Попробуйте повторить запрос.";
-            }
-
-            return answer?.TrimStart('\n', '\r');
-        }
-
         public static string GiveRole(long id, string role)
         {
             using var db = new InfoContext();
             var user = db.TableUsers.First(x => x.Id == id);
             if (user.Roles is null) user.Roles = role;
             else user.Roles += $", {role}";
+            if (user.Roles.Length > 200)
+            {
+                user.Roles = user.Roles[..200];
+            }
             db.SaveChanges();
             return $"{user.Name} получает роль {role}";
         }
@@ -483,7 +461,9 @@ namespace XpAndRepBot
         {
             var userId = long.Parse(option[2..]);
             if (callbackQuery.From.Id != userId) return false;
-            if (option.Contains('y'))
+            await using var db = new InfoContext();
+            var user = db.TableUsers.First(x => x.Id == userId);
+            if (option.Contains('y') && !user.CheckEnter)
             {
                 await botClient.RestrictChatMemberAsync(chatId: chatId, userId, new ChatPermissions
                 {
@@ -496,9 +476,12 @@ namespace XpAndRepBot
                     CanInviteUsers = true,
                     CanPinMessages = true
                 }, cancellationToken: cancellationToken);
-                await botClient.SendTextMessageAsync(chatId: chatId,
+                await botClient.SendTextMessageAsync(
+                    chatId: chatId,
                     text: $"Привет, {callbackQuery.From.FirstName}.{Greeting}",
                     cancellationToken: cancellationToken);
+                user.CheckEnter = true;
+                await db.SaveChangesAsync(cancellationToken);
             }
             else
             {

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading;
@@ -39,13 +40,15 @@ namespace XpAndRepBot
             { "/roles", new RolesCommand() },
             { "/nfc", new NoFuckChallengeCommand() },
             { "/unr", new UnRoleCommand() },
-            { "/b", new BalabobaCommand() },
+            { "/unrall", new UnRoleAllCommand() },
             { "/w", new WordCommand() },
-            { "mariage", new MariageCommand() },
-            { "mariages", new MariagesCommand() },
+            { "marriage", new MarriageCommand() },
+            { "marriages", new MarriagesCommand() },
             { "status", new StatusCommand() },
             { "divorce", new DivorceCommand() },
             { "/ha", new HelpAdminCommand() },
+            { "/report", new ReportCommand() },
+            { "/c", new ComplaintsCommand() },
             { "/ban", new BanCommand() },
             { "/unb", new UnBanCommand() },
             { "/warn", new WarnCommand() },
@@ -55,22 +58,26 @@ namespace XpAndRepBot
             { "/rew", new HelpRewardsCommand() }
         };
 
-        public async Task HandleUpdateAsync(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken)
+
+        public Task HandleUpdateAsync(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken)
         {
             Debug.WriteLine(JsonSerializer.Serialize(update));
 
             //handle callback
             if (update.Type == UpdateType.CallbackQuery)
             {
-                await HandleCallbackQuery(botClient, update.CallbackQuery, cancellationToken);
+                HandleCallbackQuery(botClient, update.CallbackQuery, cancellationToken);
             }
             else
             {
-                await HandleNonCallbackUpdate(botClient, update, cancellationToken);
+                HandleNonCallbackUpdate(botClient, update, cancellationToken);
             }
+
+            return Task.CompletedTask;
         }
 
-        private static async Task HandleNonCallbackUpdate(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken)
+        private static async Task HandleNonCallbackUpdate(ITelegramBotClient botClient, Update update,
+            CancellationToken cancellationToken)
         {
             await using var db = new InfoContext();
             if (update.Message?.Chat.Id is { } and (IgruhaChatId or MyChatId or Mid or Iid))
@@ -78,13 +85,34 @@ namespace XpAndRepBot
                 if (update.Message.From != null)
                 {
                     var user = await GetOrCreateUser(db, update);
-                    await UpdateCheckPermissions(user, update, botClient, cancellationToken);
+
+                    if (user.Id == 777000) await SetChatPermissionsAsync(botClient, update.Message.Chat.Id);
+
                     await UpdateUserLastMessageTime(db, user, update, cancellationToken);
                     await HandleNewChatMembers(botClient, update, cancellationToken);
+                    //await UpdateCheckPermissions(user, update, botClient, cancellationToken);
                     await HandleUserWarns(botClient, db, user, update, cancellationToken);
                     await DeleteUnwantedMessages(botClient, update, user, cancellationToken);
                     await ProcessMessageContent(botClient, db, update, user, cancellationToken);
                 }
+            }
+        }
+
+        private static async Task SetChatPermissionsAsync(ITelegramBotClient botClient, long chatId)
+        {
+            try
+            {
+                await botClient.SetChatPermissionsAsync(chatId, new ChatPermissions
+                {
+                    CanSendMessages = true,
+                    CanSendMediaMessages = false, // Members can't send photos, videos, etc.
+                    CanSendOtherMessages = false, // Members can't send stickers, GIFs, etc.
+                    CanAddWebPagePreviews = false, // Members can't add web page previews
+                });
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"An error occurred while setting chat permissions for chat {chatId}: {ex.Message}");
             }
         }
 
@@ -103,6 +131,11 @@ namespace XpAndRepBot
                     name += " " + update.Message.From.LastName;
                 }
 
+                if (name.Length > 50)
+                {
+                    name = name[..50];
+                }
+
                 user = new Users(idUser, name, 0, 0, 0);
                 db.TableUsers.Add(user);
             }
@@ -117,14 +150,19 @@ namespace XpAndRepBot
 
             return Task.FromResult(user);
         }
-        
-        private static async Task UpdateCheckPermissions(Users user, Update update, ITelegramBotClient botClient, CancellationToken cancellationToken)
+
+        private static async Task UpdateCheckPermissions(Users user, Update update, ITelegramBotClient botClient,
+            CancellationToken cancellationToken)
         {
             if (update.Message is { From: not null })
             {
                 try
                 {
-                    if (user.Lvl < 10)
+                    // var chatMember = await botClient.GetChatMemberAsync(
+                    //     update.Message.Chat.Id,
+                    //     update.Message.From.Id, 
+                    //     cancellationToken);
+                    if (user.Lvl < 10 && user.CheckEnter && DateTime.Now >= user.DateMute)
                     {
                         await botClient.RestrictChatMemberAsync(update.Message.Chat.Id, update.Message.From.Id,
                             new ChatPermissions
@@ -147,16 +185,19 @@ namespace XpAndRepBot
             }
         }
 
-        private static async Task UpdateUserLastMessageTime(DbContext db, Users user, Update update, CancellationToken cancellationToken)
+        private static async Task UpdateUserLastMessageTime(DbContext db, Users user, Update update,
+            CancellationToken cancellationToken)
         {
             if (update.Message != null)
             {
                 user.TimeLastMes = update.Message.Date.AddHours(3);
             }
+
             await db.SaveChangesAsync(cancellationToken);
         }
 
-        private static async Task HandleNewChatMembers(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken)
+        private static async Task HandleNewChatMembers(ITelegramBotClient botClient, Update update,
+            CancellationToken cancellationToken)
         {
             //captcha 
             if (update.Message?.NewChatMembers != null)
@@ -165,7 +206,8 @@ namespace XpAndRepBot
             }
         }
 
-        private static async Task HandleUserWarns(ITelegramBotClient botClient, InfoContext db, Users user, Update update, CancellationToken cancellationToken)
+        private static async Task HandleUserWarns(ITelegramBotClient botClient, InfoContext db, Users user,
+            Update update, CancellationToken cancellationToken)
         {
             //remove warn
             if (user.Warns > 0)
@@ -181,7 +223,8 @@ namespace XpAndRepBot
             }
         }
 
-        private static async Task NotifyUserAboutWarnRemoval(ITelegramBotClient botClient, Users user, Update update, CancellationToken cancellationToken)
+        private static async Task NotifyUserAboutWarnRemoval(ITelegramBotClient botClient, Users user, Update update,
+            CancellationToken cancellationToken)
         {
             try
             {
@@ -206,13 +249,15 @@ namespace XpAndRepBot
             }
         }
 
-        private static async Task DeleteUnwantedMessages(ITelegramBotClient botClient, Update update, Users user, CancellationToken cancellationToken)
+        private static async Task DeleteUnwantedMessages(ITelegramBotClient botClient, Update update, Users user,
+            CancellationToken cancellationToken)
         {
             //delete gifs, stickers, pools and forbidden words 
             await ChatHandlers.Delete(botClient, update, user, cancellationToken);
         }
 
-        private static async Task ProcessMessageContent(ITelegramBotClient botClient, InfoContext db, Update update,Users user, CancellationToken cancellationToken)
+        private static async Task ProcessMessageContent(ITelegramBotClient botClient, InfoContext db, Update update,
+            Users user, CancellationToken cancellationToken)
         {
             if (ShouldProcessMessage(update))
             {
@@ -245,7 +290,8 @@ namespace XpAndRepBot
             return null;
         }
 
-        private static async Task HandleReputationUp(ITelegramBotClient botClient, Update update, InfoContext db, string messageText, CancellationToken cancellationToken)
+        private static async Task HandleReputationUp(ITelegramBotClient botClient, Update update, InfoContext db,
+            string messageText, CancellationToken cancellationToken)
         {
             if (update.Message is { ReplyToMessage.From: not null } &&
                 (!update.Message.ReplyToMessage.From.IsBot || update.Message.ReplyToMessage.From.Id == BotId))
@@ -254,12 +300,14 @@ namespace XpAndRepBot
             }
         }
 
-        private static async Task HandleChatGptRequest(ITelegramBotClient botClient, Update update, string messageText, CancellationToken cancellationToken)
+        private static async Task HandleChatGptRequest(ITelegramBotClient botClient, Update update, string messageText,
+            CancellationToken cancellationToken)
         {
             if (update.Message != null)
             {
                 var chatId = update.Message.Chat.Id;
-                if (!Commands.Keys.Any(messageText.StartsWith) && (update.Message?.ReplyToMessage is { From.Id: BotId } ||
+                if (!Commands.Keys.Any(messageText.StartsWith) &&
+                    (update.Message?.ReplyToMessage is { From.Id: BotId } ||
                      messageText.Contains("@XpAndRepBot") || chatId == Mid || chatId == Iid))
                 {
                     await ChatHandlers.RequestChatGpt(botClient, update, messageText, cancellationToken);
@@ -267,7 +315,8 @@ namespace XpAndRepBot
             }
         }
 
-        private static async Task HandleLevelUp(ITelegramBotClient botClient, Update update, InfoContext db, Users user, CancellationToken cancellationToken)
+        private static async Task HandleLevelUp(ITelegramBotClient botClient, Update update, InfoContext db, Users user,
+            CancellationToken cancellationToken)
         {
             if (update.Message?.Chat.Id != Mid)
             {
@@ -275,18 +324,46 @@ namespace XpAndRepBot
             }
         }
 
-        private static async Task HandleCommands(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken)
+        private static async Task HandleCommands(ITelegramBotClient botClient, Update update,
+            CancellationToken cancellationToken)
         {
+            ChatMember chatMember1 = null;
+            if (update.Message is { From: not null })
+            {
+                chatMember1 = await botClient.GetChatMemberAsync(update.Message.Chat.Id,
+                    update.Message.From.Id, cancellationToken);
+            }
+
+            ChatMember chatMember2 = null;
+            if (update.Message is { ReplyToMessage.From: not null })
+            {
+                chatMember2 = await botClient.GetChatMemberAsync(update.Message.Chat.Id,
+                    update.Message.ReplyToMessage.From.Id, cancellationToken);
+            }
+
             var messageText = GetMessageText(update);
             var match = Regex.Match(messageText, @"^.*?([\w/]+)");
-            if (Commands.ContainsKey(match.Value.ToLower()) && update.Message is not { ReplyToMessage.From.Id: 777000 })
+            if (Commands.ContainsKey(match.Value.ToLower()))
             {
-                var command = Commands[match.Value.ToLower()];
-                await command.ExecuteAsync(botClient, update, cancellationToken);
+                if (chatMember1 != null && (chatMember1 is { Status: ChatMemberStatus.Left } ||
+                                            chatMember2 is { Status: ChatMemberStatus.Left } &&
+                                            chatMember1.Status != ChatMemberStatus.Administrator))
+                {
+                    await botClient.DeleteMessageAsync(
+                        update.Message.Chat.Id,
+                        update.Message.MessageId,
+                        cancellationToken);
+                }
+                else
+                {
+                    var command = Commands[match.Value.ToLower()];
+                    await command.ExecuteAsync(botClient, update, cancellationToken);
+                }
             }
         }
 
-        private static Task HandleMentions(InfoContext db, Users user, Update update, ITelegramBotClient botClient, CancellationToken cancellationToken)
+        private static Task HandleMentions(InfoContext db, Users user, Update update, ITelegramBotClient botClient,
+            CancellationToken cancellationToken)
         {
             var messageText = GetMessageText(update);
             if (messageText.Length >= 100) return Task.CompletedTask;
@@ -303,34 +380,84 @@ namespace XpAndRepBot
             return Task.CompletedTask;
         }
 
-        private static async Task HandleNfc(ITelegramBotClient botClient, Update update, Users user, CancellationToken cancellationToken)
+        private static async Task<List<string>> ReadResourceLinesToLower(string resourceName)
         {
-            const string filePath = "bw.txt";
-            var words = await ReadFileLinesToLower(filePath);
-            var messageWords = GetMessageText(update)
-                .Split(new[] { ' ', ',', '.', '!', '?' }, StringSplitOptions.RemoveEmptyEntries);
-            var containsWord = messageWords.Any(w => words.Contains(w.ToLower()));
-            if (containsWord)
-            {
-                try
-                {
-                    if (update.Message != null && user.Nfc == true)
-                    {
-                        await botClient.SendTextMessageAsync(
-                            chatId: update.Message.Chat.Id,
-                            text: await ChatHandlers.Nfc(user, botClient, cancellationToken),
-                            cancellationToken: cancellationToken);
-                    }
+            var assembly = Assembly.GetExecutingAssembly();
+            await using var stream = assembly.GetManifestResourceStream(resourceName);
+            if (stream == null) throw new Exception($"Resource {resourceName} not found.");
 
-                    if (update.Message is { ReplyToMessage.From.Id: 777000 }) //delete forbidden words
-                    {
-                        await botClient.DeleteMessageAsync(update.Message.Chat.Id, update.Message.MessageId,
-                            cancellationToken);
-                    }
-                }
-                catch 
+            using var reader = new StreamReader(stream);
+            var lines = new List<string>();
+            while (!reader.EndOfStream)
+            {
+                lines.Add(await reader.ReadLineAsync());
+            }
+
+            return lines.Select(line => line.ToLower()).ToList();
+        }
+
+        private static bool ContainsMessageId(InfoContext db, long targetMessageId)
+        {
+            return db.TableMessageIdsForDelete.Any(row => row.MessageIds.Contains(targetMessageId.ToString()));
+        }
+
+        private static async Task HandleNfc(ITelegramBotClient botClient, Update update, Users user,
+            CancellationToken cancellationToken)
+        {
+            var message = update.Message;
+            if (message == null) return;
+
+            await using var db = new InfoContext();
+            if (message.From is { Id: 777000 })
+            {
+                db.TableMessageIdsForDelete.Add(new MessageIdsForDelete(message.MessageId,
+                    message.MessageId.ToString()));
+                await db.SaveChangesAsync(cancellationToken);
+            }
+
+            var flagForDelete = message.ReplyToMessage != null &&
+                                ContainsMessageId(db, message.ReplyToMessage.MessageId);
+            if (flagForDelete)
+            {
+                var rowToUpdate = db.TableMessageIdsForDelete.FirstOrDefault(row =>
+                    row.MessageIds.Contains(message.ReplyToMessage.MessageId.ToString()));
+                if (rowToUpdate != null)
                 {
-                    //ignored
+                    rowToUpdate.MessageIds += " " + message.MessageId;
+                    await db.SaveChangesAsync(cancellationToken);
+                }
+            }
+
+            if ((user.Nfc == true || flagForDelete) && update.Message != null)
+            {
+                var words = await ReadResourceLinesToLower("XpAndRepBot.bw.txt");
+                var messageWords = GetMessageText(update).ToLower()
+                    .Split(new[] { ' ', ',', '.', '!', '?' }, StringSplitOptions.RemoveEmptyEntries);
+                var containsWord = messageWords.Any(w => words.Contains(w));
+                if (containsWord)
+                {
+                    try
+                    {
+                        if (user.Nfc == true)
+                        {
+                            await botClient.SendTextMessageAsync(
+                                chatId: update.Message.Chat.Id,
+                                text: await ChatHandlers.Nfc(user, botClient, cancellationToken),
+                                cancellationToken: cancellationToken);
+                        }
+
+                        if (flagForDelete)
+                        {
+                            await botClient.DeleteMessageAsync(
+                                update.Message.Chat.Id,
+                                update.Message.MessageId,
+                                cancellationToken);
+                        }
+                    }
+                    catch
+                    {
+                        //ignored
+                    }
                 }
             }
         }
@@ -348,9 +475,15 @@ namespace XpAndRepBot
             return words;
         }
 
-        private static async Task HandleRepeatedMessages(ITelegramBotClient botClient, Update update, Users user, CancellationToken cancellationToken)
+        private static async Task HandleRepeatedMessages(ITelegramBotClient botClient, Update update, Users user,
+            CancellationToken cancellationToken)
         {
             var messageText = GetMessageText(update);
+            if (messageText.Length > 50)
+            {
+                messageText = messageText[..50];
+            }
+
             if (user.LastMessage == messageText)
             {
                 user.CountRepeatMessage++;
@@ -380,7 +513,8 @@ namespace XpAndRepBot
             }
         }
 
-        private static async Task HandleCallbackQuery(ITelegramBotClient botClient, CallbackQuery callbackQuery, CancellationToken cancellationToken)
+        private static async Task HandleCallbackQuery(ITelegramBotClient botClient, CallbackQuery callbackQuery,
+            CancellationToken cancellationToken)
         {
             if (callbackQuery.Message == null) return;
 
@@ -424,7 +558,8 @@ namespace XpAndRepBot
             }
         }
 
-        private static async Task HandleMeWordsCallbackQuery(ITelegramBotClient botClient, CallbackQuery callbackQuery, CancellationToken cancellationToken)
+        private static async Task HandleMeWordsCallbackQuery(ITelegramBotClient botClient, CallbackQuery callbackQuery,
+            CancellationToken cancellationToken)
         {
             var match = GetMatchFromMessage(callbackQuery.Message, @"^\d+");
             var number = match is { Success: true } ? int.Parse(match.Value) : 0;
@@ -437,7 +572,8 @@ namespace XpAndRepBot
             await EditMessageText(botClient, callbackQuery, newText, inlineKeyboard, cancellationToken);
         }
 
-        private static async Task HandleTopWordsCallbackQuery(ITelegramBotClient botClient, CallbackQuery callbackQuery, CancellationToken cancellationToken)
+        private static async Task HandleTopWordsCallbackQuery(ITelegramBotClient botClient, CallbackQuery callbackQuery,
+            CancellationToken cancellationToken)
         {
             var match = GetMatchFromMessage(callbackQuery.Message, @"\n\d+", RegexOptions.Multiline);
             var number = match != null ? int.Parse(match.Value) : 0;
@@ -450,7 +586,8 @@ namespace XpAndRepBot
             await EditMessageText(botClient, callbackQuery, newText, inlineKeyboard, cancellationToken);
         }
 
-        private static async Task HandleTopRepCallbackQuery(ITelegramBotClient botClient, CallbackQuery callbackQuery, CancellationToken cancellationToken)
+        private static async Task HandleTopRepCallbackQuery(ITelegramBotClient botClient, CallbackQuery callbackQuery,
+            CancellationToken cancellationToken)
         {
             var match = GetMatchFromMessage(callbackQuery.Message, @"\n\d+", RegexOptions.Multiline);
             var number = match != null ? int.Parse(match.Value) : 0;
@@ -463,7 +600,8 @@ namespace XpAndRepBot
             await EditMessageText(botClient, callbackQuery, newText, inlineKeyboard, cancellationToken);
         }
 
-        private static async Task HandleTopLvlCallbackQuery(ITelegramBotClient botClient, CallbackQuery callbackQuery, CancellationToken cancellationToken)
+        private static async Task HandleTopLvlCallbackQuery(ITelegramBotClient botClient, CallbackQuery callbackQuery,
+            CancellationToken cancellationToken)
         {
             var match = GetMatchFromMessage(callbackQuery.Message, @"\n\d+", RegexOptions.Multiline);
             var number = match != null ? int.Parse(match.Value) : 0;
@@ -476,7 +614,8 @@ namespace XpAndRepBot
             await EditMessageText(botClient, callbackQuery, newText, inlineKeyboard, cancellationToken);
         }
 
-        private static async Task HandleTopLexiconCallbackQuery(ITelegramBotClient botClient, CallbackQuery callbackQuery, CancellationToken cancellationToken)
+        private static async Task HandleTopLexiconCallbackQuery(ITelegramBotClient botClient,
+            CallbackQuery callbackQuery, CancellationToken cancellationToken)
         {
             var match = GetMatchFromMessage(callbackQuery.Message, @"\n\d+", RegexOptions.Multiline);
             var number = match != null ? int.Parse(match.Value) : 0;
@@ -503,7 +642,8 @@ namespace XpAndRepBot
             await EditMessageText(botClient, callbackQuery, newText, inlineKeyboard, cancellationToken);
         }
 
-        private static async Task HandleDefaultCallbackQuery(ITelegramBotClient botClient, CallbackQuery callbackQuery, CancellationToken cancellationToken)
+        private static async Task HandleDefaultCallbackQuery(ITelegramBotClient botClient, CallbackQuery callbackQuery,
+            CancellationToken cancellationToken)
         {
             if (callbackQuery.Message != null)
             {
@@ -535,7 +675,8 @@ namespace XpAndRepBot
             }
         }
 
-        private static Match GetMatchFromMessage(Message message, string pattern, RegexOptions options = RegexOptions.None)
+        private static Match GetMatchFromMessage(Message message, string pattern,
+            RegexOptions options = RegexOptions.None)
         {
             return message.Text != null ? Regex.Match(message.Text, pattern, options) : null;
         }
@@ -560,16 +701,17 @@ namespace XpAndRepBot
                 var messageId = callbackQuery.Message.MessageId;
                 var chatId = callbackQuery.Message.Chat.Id;
                 await botClient.EditMessageTextAsync(
-                    chatId: chatId, 
-                    replyMarkup: inlineKeyboard, 
+                    chatId: chatId,
+                    replyMarkup: inlineKeyboard,
                     messageId: messageId,
-                    text: newText, 
-                    parseMode: ParseMode.Html, 
+                    text: newText,
+                    parseMode: ParseMode.Html,
                     cancellationToken: cancellationToken);
             }
         }
 
-        public Task HandleErrorAsync(ITelegramBotClient botClient, Exception exception, CancellationToken cancellationToken)
+        public Task HandleErrorAsync(ITelegramBotClient botClient, Exception exception,
+            CancellationToken cancellationToken)
         {
             Console.Error.WriteLine(exception);
             return Task.CompletedTask;

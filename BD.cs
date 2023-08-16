@@ -1,62 +1,93 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using System;
+using System.ComponentModel.DataAnnotations;
 
-namespace XpAndRepBot
+namespace XpAndRepBot;
+
+public class Words
 {
-    public class Words
+    public string Word { get; set; }
+    public int Count { get; set; }
+}
+    
+public class UserWords
+{
+    [Key]
+    public long UserId { get; set; }
+        
+    public string Word { get; set; }
+        
+    public int Count { get; set; }
+}
+    
+public class Users
+{
+    public long Id { get; set; }
+    public string Name { get; set; }
+    public int Lvl { get; set; }
+    public int CurXp { get; set; }
+    public int Rep { get; set; }
+    public int Warns { get; set; }
+    public DateTime LastTime { get; set; }
+    public string Roles { get; set; }
+    public bool? Nfc { get; set; }
+    public DateTime StartNfc { get; set; }
+    public long BestTime { get; set; }
+    public DateTime TimeLastMes { get; set; }
+    public string LastMessage { get; set; }
+    public int CountRepeatMessage { get; set; }
+    public long Mariage { get; set; }
+    public DateTime DateMariage { get; set; }
+    public string Username { get; set; }
+    public DateTime DateMute { get; set; }
+    public bool CheckEnter { get; set; }
+    public string Complaints { get; set; }
+    public string Complainers { get; set; }
+
+    public Users(long id, string name, int lvl, int curXp, int rep)
     {
-        public string Word { get; set; }
-        public int Count { get; set; }
+        Id = id;
+        Name = name;
+        Lvl = lvl;
+        CurXp = curXp;
+        Rep = rep; Warns = 0;
+        LastTime = DateTime.ParseExact("1900-01-01 00:00:00.000", "yyyy-MM-dd HH:mm:ss.fff", System.Globalization.CultureInfo.InvariantCulture);
+        Nfc = false;
+        StartNfc = DateTime.ParseExact("1900-01-01 00:00:00.000", "yyyy-MM-dd HH:mm:ss.fff", System.Globalization.CultureInfo.InvariantCulture);
+        BestTime = 0;
+        TimeLastMes = DateTime.ParseExact("1900-01-01 00:00:00.000", "yyyy-MM-dd HH:mm:ss.fff", System.Globalization.CultureInfo.InvariantCulture);
+        CountRepeatMessage = 1;
+        LastMessage = "";
+        Mariage = 0;
+        DateMariage = DateTime.ParseExact("1900-01-01 00:00:00.000", "yyyy-MM-dd HH:mm:ss.fff", System.Globalization.CultureInfo.InvariantCulture);
+        Username = "";
+        DateMute = DateTime.ParseExact("1900-01-01 00:00:00.000", "yyyy-MM-dd HH:mm:ss.fff", System.Globalization.CultureInfo.InvariantCulture);
+        CheckEnter = true;
+        Complaints = "";
+        Complainers = "";
     }
+}
 
-    public class Users
+public class MessageIdsForDelete
+{
+    [Key]
+    public long Id { get; set; }
+    public string MessageIds { get; set; }
+    
+    public MessageIdsForDelete(long id, string messageIds)
     {
-        public long Id { get; set; }
-        public string Name { get; set; }
-        public int Lvl { get; set; }
-        public int CurXp { get; set; }
-        public int Rep { get; set; }
-        public int Warns { get; set; }
-        public DateTime LastTime { get; set; }
-        public string Roles { get; set; }
-        public bool? Nfc { get; set; }
-        public DateTime StartNfc { get; set; }
-        public long BestTime { get; set; }
-        public DateTime TimeLastMes { get; set; }
-        public string LastMessage { get; set; }
-        public int CountRepeatMessage { get; set; }
-        public long Mariage { get; set; }
-        public DateTime DateMariage { get; set; }
-        public string Username { get; set; }
-        public DateTime DateMute { get; set; }
-
-        public Users(long id, string name, int lvl, int curXp, int rep)
-        {
-            Id = id;
-            Name = name;
-            Lvl = lvl;
-            CurXp = curXp;
-            Rep = rep; Warns = 0;
-            LastTime = DateTime.ParseExact("1900-01-01 00:00:00.000", "yyyy-MM-dd HH:mm:ss.fff", System.Globalization.CultureInfo.InvariantCulture);
-            Nfc = false;
-            StartNfc = DateTime.ParseExact("1900-01-01 00:00:00.000", "yyyy-MM-dd HH:mm:ss.fff", System.Globalization.CultureInfo.InvariantCulture);
-            BestTime = 0;
-            TimeLastMes = DateTime.ParseExact("1900-01-01 00:00:00.000", "yyyy-MM-dd HH:mm:ss.fff", System.Globalization.CultureInfo.InvariantCulture);
-            CountRepeatMessage = 1;
-            LastMessage = "";
-            Mariage = 0;
-            DateMariage = DateTime.ParseExact("1900-01-01 00:00:00.000", "yyyy-MM-dd HH:mm:ss.fff", System.Globalization.CultureInfo.InvariantCulture);
-            Username = "";
-            DateMute = DateTime.ParseExact("1900-01-01 00:00:00.000", "yyyy-MM-dd HH:mm:ss.fff", System.Globalization.CultureInfo.InvariantCulture);
-        }
+        Id = id;
+        MessageIds = messageIds;
     }
+}
 
-    public class InfoContext : DbContext
+public class InfoContext : DbContext
+{
+    public DbSet<Users> TableUsers { get; set; }
+    public DbSet<UserWords> TableUsersLexicons { get; set; }
+    public DbSet<MessageIdsForDelete> TableMessageIdsForDelete { get; set; }
+    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
-        public DbSet<Users> TableUsers { get; set; }
-        protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
-        {
-            optionsBuilder.UseSqlServer(Consts.ConStringDbUsers);
-        }
+        optionsBuilder.UseSqlServer(Consts.ConnectionString);
     }
 }

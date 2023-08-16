@@ -711,31 +711,39 @@ namespace XpAndRepBot
             }
         }
     }
-
-    public class BalabobaCommand : ICommand
+    
+    public class UnRoleAllCommand : ICommand
     {
         public async Task ExecuteAsync(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken)
         {
-            try
+            if (update.Message is { From.Id: Iid, ReplyToMessage: not null })
             {
-                if (update.Message?.Text != null)
+                await using var db = new InfoContext();
+                var user = db.TableUsers.First(x => x.Id == update.Message.ReplyToMessage.From.Id);
+                try
                 {
                     await botClient.SendTextMessageAsync(
                         chatId: update.Message.Chat.Id,
                         replyToMessageId: update.Message.MessageId,
-                        text: await ResponseHandlers.RequestBalaboba(update.Message.Text[3..]),
+                        text: $"Удалены роли {user.Roles} у {user.Name}",
                         cancellationToken: cancellationToken);
                 }
-            }
-            catch
-            {
-                if (update.Message?.Text != null)
+                catch
                 {
                     await botClient.SendTextMessageAsync(
                         chatId: update.Message.Chat.Id,
-                        text: await ResponseHandlers.RequestBalaboba(update.Message.Text[3..]),
+                        text: $"Удалены роли {user.Roles} у {user.Name}",
                         cancellationToken: cancellationToken);
                 }
+                user.Roles = "";
+                await db.SaveChangesAsync(cancellationToken);
+            }
+            else if (update.Message != null)
+            {
+                await botClient.DeleteMessageAsync(
+                    update.Message.Chat.Id, 
+                    update.Message.MessageId, 
+                    cancellationToken);
             }
         }
     }
@@ -1207,7 +1215,7 @@ namespace XpAndRepBot
         }
     }
 
-    public class MariageCommand : ICommand
+    public class MarriageCommand : ICommand
     {
         public async Task ExecuteAsync(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken)
         {
@@ -1297,7 +1305,7 @@ namespace XpAndRepBot
         }
     }
 
-    public class MariagesCommand : ICommand
+    public class MarriagesCommand : ICommand
     {
         public async Task ExecuteAsync(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken)
         {
@@ -1379,6 +1387,148 @@ namespace XpAndRepBot
                                     cancellationToken: cancellationToken);
                             }
                         }
+                    }
+                }
+            }
+        }
+    }
+    
+    public class ReportCommand : ICommand
+    {
+        public async Task ExecuteAsync(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken)
+        {
+            if (update.Message is { Text: not null } and { ReplyToMessage: not null } && update.Message.Text.Length > 7)
+            {
+                await using var db = new InfoContext();
+                var user1 = db.TableUsers.First(x => x.Id == update.Message.ReplyToMessage.From.Id);
+                var user2 = db.TableUsers.First(x => x.Id == update.Message.From.Id);
+                if (!user1.Complainers.Contains(user2.Id.ToString()))
+                {
+                    user1.Complainers += user2.Id + ",";
+                    user1.Complaints += $"{update.Message.Text[8..]} ({user2.Name})\n";
+                    await db.SaveChangesAsync(cancellationToken);
+                    try
+                    {
+                        await botClient.SendTextMessageAsync(
+                            chatId: update.Message.Chat.Id,
+                            replyToMessageId: update.Message.MessageId,
+                            text: "Ваша жалоба принята",
+                            cancellationToken: cancellationToken);
+                    }
+                    catch
+                    {
+                        await botClient.SendTextMessageAsync(
+                            chatId: update.Message.Chat.Id,
+                            text: "Ваша жалоба принята",
+                            cancellationToken: cancellationToken);
+                    }
+                }
+                else
+                {
+                    try
+                    {
+                        await botClient.SendTextMessageAsync(
+                            chatId: update.Message.Chat.Id,
+                            replyToMessageId: update.Message.MessageId,
+                            text: "Ваша жалоба отклонена, вы уже жаловались на этого пользователя",
+                            cancellationToken: cancellationToken);
+                    }
+                    catch
+                    {
+                        await botClient.SendTextMessageAsync(
+                            chatId: update.Message.Chat.Id,
+                            text: "Ваша жалоба отклонена, вы уже жаловались на этого пользователя",
+                            cancellationToken: cancellationToken);
+                    }
+                }
+            }
+            else
+            {
+                try
+                {
+                    await botClient.SendTextMessageAsync(
+                        chatId: update.Message.Chat.Id,
+                        replyToMessageId: update.Message.MessageId,
+                        text: "Ваша жалоба отклонена, вы не ответили на сообщение пользователя или не написали жалобу",
+                        cancellationToken: cancellationToken);
+                }
+                catch
+                {
+                    await botClient.SendTextMessageAsync(
+                        chatId: update.Message.Chat.Id,
+                        text: "Ваша жалоба отклонена, вы не ответили на сообщение пользователя или не написали жалобу",
+                        cancellationToken: cancellationToken);
+                }
+            }
+        }
+    }
+    
+    public class ComplaintsCommand : ICommand
+    {
+        public async Task ExecuteAsync(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken)
+        {
+            var replyId = -1;
+            long userId = 0;
+            await using var db = new InfoContext();
+            
+            switch (update.Message)
+            {
+                case { Entities: not null } when update.Message.Entities.Any(x => x.Type
+                    is MessageEntityType.TextMention or MessageEntityType.Mention):
+                {
+                    foreach (var entity in update.Message.Entities)
+                    {
+                        switch (entity.Type)
+                        {
+                            case MessageEntityType.TextMention:
+                                if (entity.User != null) userId = entity.User.Id;
+                                break;
+                            case MessageEntityType.Mention:
+                            {
+                                var user = db.TableUsers.FirstOrDefault(x =>
+                                    x.Username == update.Message.Text.Substring(entity.Offset + 1, entity.Length - 1));
+                                if (user != null) userId = user.Id;
+                                break;
+                            }
+                            default:
+                                break;
+                        }
+                    }
+
+                    break;
+                }
+                case { ReplyToMessage.From.IsBot: false } when update.Message.ReplyToMessage.From.Id != 777000:
+                    userId = update.Message.ReplyToMessage.From.Id;
+                    replyId = update.Message.ReplyToMessage.MessageId;
+                    break;
+                case { From: not null }:
+                    userId = update.Message.From.Id;
+                    replyId = update.Message.MessageId;
+                    break;
+            }
+
+            if (userId != 0)
+            {
+                var user = db.TableUsers.FirstOrDefault(x => x.Id == userId);
+                try
+                {
+                    if (update.Message != null && user != null)
+                    {
+                        await botClient.SendTextMessageAsync(
+                            chatId: update.Message.Chat.Id,
+                            replyToMessageId: replyId,
+                            text: $"Список жалоб на {user.Name}:\n{user.Complaints}",
+                            cancellationToken: cancellationToken);
+                    }
+                }
+                catch
+                {
+                    if (update.Message != null && user != null)
+                    {
+                        await botClient.SendTextMessageAsync(
+                            chatId: update.Message.Chat.Id,
+                            text: $"Список жалоб на {user.Name}:\n{user.Complaints}",
+                            cancellationToken: cancellationToken);
                     }
                 }
             }

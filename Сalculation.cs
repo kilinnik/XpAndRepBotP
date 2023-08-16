@@ -22,7 +22,7 @@ namespace XpAndRepBot
 
         public static async Task<int> PlaceLexicon(Users user)
         {
-            await using SqlConnection connection = new(ConStringDbLexicon);
+            await using SqlConnection connection = new(ConnectionString);
             await connection.OpenAsync();
             SqlCommand command = new(
                 $"SELECT RowNumber from (SELECT ROW_NUMBER() OVER (ORDER BY Count(*) DESC) AS RowNumber, UserID, " +

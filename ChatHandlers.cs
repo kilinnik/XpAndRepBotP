@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 using System.Data.SqlClient;
+using Microsoft.EntityFrameworkCore;
 using static XpAndRepBot.Consts;
 using Mirror.ChatGpt.Models.ChatGpt;
 using Telegram.Bot.Types.Enums;
@@ -16,7 +17,8 @@ namespace XpAndRepBot
 {
     public static class ChatHandlers
     {
-        public static async Task LvlUp(ITelegramBotClient botClient, Update update, InfoContext db, Users user, CancellationToken cancellationToken)
+        public static async Task LvlUp(ITelegramBotClient botClient, Update update, InfoContext db, Users user,
+            CancellationToken cancellationToken)
         {
             while (user.CurXp >= Сalculation.GenerateXpForLevel(user.Lvl + 1))
             {
@@ -26,7 +28,7 @@ namespace XpAndRepBot
                 if (update.Message == null) continue;
                 await botClient.SendTextMessageAsync(
                     chatId: update.Message.Chat.Id,
-                    text: $"{user.Name} получает {user.Lvl} lvl", 
+                    text: $"{user.Name} получает {user.Lvl} lvl",
                     cancellationToken: cancellationToken);
                 if (user.Lvl != 10) continue;
                 if (update.Message.From != null)
@@ -43,13 +45,17 @@ namespace XpAndRepBot
                             CanPinMessages = true
                         }, cancellationToken: cancellationToken);
             }
+
             await db.SaveChangesAsync(cancellationToken);
         }
 
-        public static async Task RequestChatGpt(ITelegramBotClient botClient, Update update, string mes, CancellationToken cancellationToken)
+        public static async Task RequestChatGpt(ITelegramBotClient botClient, Update update, string mes,
+            CancellationToken cancellationToken)
         {
-            if (mes.Contains("@XpAndRepBot") || (update.Message?.Chat.Id == Mid && update.Message.ReplyToMessage == null) 
-                                             || (update.Message?.Chat.Id == Iid && update.Message.ReplyToMessage == null))
+            if (mes.Contains("@XpAndRepBot") || (update.Message?.Chat.Id == Mid &&
+                                                 update.Message.ReplyToMessage == null)
+                                             || (update.Message?.Chat.Id == Iid &&
+                                                 update.Message.ReplyToMessage == null))
             {
                 if (update.Message != null)
                 {
@@ -57,6 +63,7 @@ namespace XpAndRepBot
                     Program.ListBranches.Add(new List<int>() { update.Message.MessageId });
                 }
             }
+
             mes = mes.Replace("@XpAndRepBot", "");
             if (mes.Any(char.IsLetter) || mes.Any(char.IsNumber) || mes.Any(char.IsPunctuation))
             {
@@ -74,6 +81,7 @@ namespace XpAndRepBot
                             {
                                 number = int.Parse(match.Value);
                             }
+
                             var targetList = Program.ListBranches.Find(list => list.Contains(number));
                             targetList?.Add(update.Message.MessageId);
                             if (targetList is { Count: > 0 })
@@ -82,6 +90,7 @@ namespace XpAndRepBot
                             }
                         }
                     }
+
                     var subArray = new MessageEntry[1];
                     if (Program.Context.TryGetValue(id, out var array))
                     {
@@ -89,34 +98,41 @@ namespace XpAndRepBot
                         array[index] = new MessageEntry { Role = Roles.User, Content = mes };
                         Program.Context[id] = array;
                         subArray = new ArraySegment<MessageEntry>(array, 0, index + 1).ToArray();
-
                     }
+
                     if (subArray[0] != null)
                     {
                         try
                         {
                             try
                             {
-                                await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, 
-                                    replyToMessageId: update.Message.MessageId, text: await ResponseHandlers.RequestChatGpt(id, subArray), 
+                                await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id,
+                                    replyToMessageId: update.Message.MessageId,
+                                    text: await ResponseHandlers.RequestChatGpt(id, subArray),
                                     cancellationToken: cancellationToken);
                             }
                             catch
                             {
-                                await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, 
-                                    text: await ResponseHandlers.RequestChatGpt(id, subArray), cancellationToken: cancellationToken);
+                                await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id,
+                                    text: await ResponseHandlers.RequestChatGpt(id, subArray),
+                                    cancellationToken: cancellationToken);
                             }
                         }
-                        catch { await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, 
-                            text: "Произошла ошибка. Попробуйте повторить запрос. Чтобы начать новую ветку, упомяните бота. " +
-                                  "Чтобы продолжить ветку, ответьте на сообщение от бота, где есть число в конце", 
-                            cancellationToken: cancellationToken); }
+                        catch
+                        {
+                            await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id,
+                                text:
+                                "Произошла ошибка. Попробуйте повторить запрос. Чтобы начать новую ветку, упомяните бота. " +
+                                "Чтобы продолжить ветку, ответьте на сообщение от бота, где есть число в конце",
+                                cancellationToken: cancellationToken);
+                        }
                     }
                 }
             }
         }
 
-        public static async Task NewMember(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken)
+        public static async Task NewMember(ITelegramBotClient botClient, Update update,
+            CancellationToken cancellationToken)
         {
             await using var db = new InfoContext();
             var newMembers = update.Message?.NewChatMembers;
@@ -125,6 +141,9 @@ namespace XpAndRepBot
                 {
                     var userMute = db.TableUsers.FirstOrDefault(x => x.Id == member.Id);
                     if (userMute == null || member.IsBot || DateTime.Now < userMute.DateMute) continue;
+                    userMute.CheckEnter = false;
+                    await db.SaveChangesAsync(cancellationToken);
+
                     Random random = new();
                     var array = new int[8];
                     for (var i = 0; i < array.Length; i++)
@@ -177,7 +196,8 @@ namespace XpAndRepBot
                 }
         }
 
-        public static async Task ReputationUp(ITelegramBotClient botClient, Update update, InfoContext db, string mes, CancellationToken cancellationToken)
+        public static async Task ReputationUp(ITelegramBotClient botClient, Update update, InfoContext db, string mes,
+            CancellationToken cancellationToken)
         {
             try
             {
@@ -195,40 +215,82 @@ namespace XpAndRepBot
             }
         }
 
-        public static async Task Delete(ITelegramBotClient botClient, Update update, Users user, CancellationToken cancellationToken)
+        private static bool ContainsMessageId(InfoContext db, long targetMessageId)
+        {
+            return db.TableMessageIdsForDelete.Any(row => row.MessageIds.Contains(targetMessageId.ToString()));
+        }
+
+        public static async Task Delete(ITelegramBotClient botClient, Update update, Users user,
+            CancellationToken cancellationToken)
         {
             try
             {
-                var flag = update.Message != null && update.Message.MessageId % 10 == 0;
-                var any = ForbiddenWords.Any(s => update.Message is { Text: not null } &&
-                                                  update.Message.Text.ToLower().Contains(s));
+                var message = update.Message;
+                if (message == null) return;
 
-                if (update.Message is { ReplyToMessage.From.Id: 777000 } && any) //delete forbidden words
+                await using var db = new InfoContext();
+                if (message.From is { Id: 777000 })
                 {
-                    await botClient.DeleteMessageAsync(update.Message.Chat.Id, update.Message.MessageId, cancellationToken);
+                    db.TableMessageIdsForDelete.Add(new MessageIdsForDelete(message.MessageId,
+                        message.MessageId.ToString()));
+                    await db.SaveChangesAsync(cancellationToken);
                 }
-                else if (update.Message?.Animation != null && user.Lvl < 10 || update.Message is { ReplyToMessage.From.Id: 777000 }) //delete gif
+
+                var flagForDelete = message.ReplyToMessage != null &&
+                                    ContainsMessageId(db, message.ReplyToMessage.MessageId);
+                if (flagForDelete)
                 {
-                    if (flag && update.Message is not { ReplyToMessage.From.Id: 777000 }) await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, replyToMessageId: update.Message.MessageId, text: "Гифки с 10 лвла.\n/m - посмотреть свой лвл", cancellationToken: cancellationToken);
-                    await botClient.DeleteMessageAsync(update.Message.Chat.Id, update.Message.MessageId, cancellationToken);
-                }
-                else if (update.Message?.Sticker != null && user.Lvl < 15 || update.Message is { ReplyToMessage.From.Id: 777000 }) //delete sticker
-                {
-                    var sticker = update.Message.Sticker;
-                    if (sticker.SetName != null)
+                    var rowToUpdate = db.TableMessageIdsForDelete.FirstOrDefault(row =>
+                        row.MessageIds.Contains(message.ReplyToMessage.MessageId.ToString()));
+                    if (rowToUpdate != null)
                     {
-                        var set = await botClient.GetStickerSetAsync(sticker.SetName, cancellationToken: cancellationToken);
-                        if (set.Name != "UnoWarStickers" && set.Name != "UsedWorm_by_fStikBot")
-                        {
-                            if (flag && update.Message is not { ReplyToMessage.From.Id: 777000 }) await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, replyToMessageId: update.Message.MessageId, text: "Стикеры с 15 лвла, кроме стикеров чата и Уно.\n/m - посмотреть свой лвл", cancellationToken: cancellationToken);
-                            await botClient.DeleteMessageAsync(update.Message.Chat.Id, update.Message.MessageId, cancellationToken);
-                        }
+                        rowToUpdate.MessageIds += " " + message.MessageId;
+                        await db.SaveChangesAsync(cancellationToken);
                     }
                 }
-                else if (update.Message?.Poll != null && user.Lvl < 20) //delete poll
+
+                var flag = message.MessageId % 10 == 0;
+                var flagForbiddenWords = flagForDelete && ForbiddenWords.Any(s =>
+                    !string.IsNullOrEmpty(message.Text) && message.Text.ToLower().Contains(s));
+
+                if (flagForbiddenWords)
                 {
-                    if (flag && update.Message is not { ReplyToMessage.From.Id: 777000 }) await botClient.SendTextMessageAsync(chatId: update.Message.Chat.Id, replyToMessageId: update.Message.MessageId, text: "Опросы с 20 лвла.\n/m - посмотреть свой лвл", cancellationToken: cancellationToken);
-                    await botClient.DeleteMessageAsync(update.Message.Chat.Id, update.Message.MessageId, cancellationToken);
+                    await botClient.DeleteMessageAsync(message.Chat.Id, message.MessageId, cancellationToken);
+                    return;
+                }
+
+                if (message.Animation != null && (user.Lvl < 10 || flagForDelete) ||
+                    message.Sticker != null && (user.Lvl < 15 || flagForDelete) ||
+                    message.Poll != null && (user.Lvl < 20 || flagForDelete))
+                {
+                    if (!flagForDelete && flag)
+                    {
+                        var text = message.Animation != null
+                            ?
+                            "Гифки с 10 лвла и в ответ кидать нельзя.\n/m - посмотреть свой лвл"
+                            :
+                            message.Sticker != null
+                                ? "Стикеры с 15 лвла и в ответ кидать нельзя.\n/m - посмотреть свой лвл"
+                                :
+                                message.Poll != null
+                                    ? "Опросы с 20 лвла.\n/m - посмотреть свой лвл"
+                                    : null;
+                        
+                        if (!string.IsNullOrEmpty(text))
+                        {
+                            await botClient.SendTextMessageAsync(chatId: message.Chat.Id, text: text,
+                                cancellationToken: cancellationToken);
+                        }
+                    }
+
+                    await botClient.DeleteMessageAsync(message.Chat.Id, message.MessageId, cancellationToken);
+                    return;
+                }
+
+                if (flagForDelete && (message.Video != null || message.Voice != null || message.VideoNote != null ||
+                                      message.Document != null || message.Audio != null))
+                {
+                    await botClient.DeleteMessageAsync(message.Chat.Id, message.MessageId, cancellationToken);
                 }
             }
             catch
@@ -239,21 +301,38 @@ namespace XpAndRepBot
 
         public static async Task AddWordsInLexicon(Users user, string mes)
         {
-            await using SqlConnection connection = new(ConStringDbLexicon);
+            await using SqlConnection connection = new(ConnectionString);
             await connection.OpenAsync();
             var listWords = mes.Split(new[] { " ", "\r\n", "\n" }, StringSplitOptions.None);
-            var validWords = (from t in listWords select Regex.Replace(t, @"[^\w\d\s]", "") into cleanedWord where !string.IsNullOrWhiteSpace(cleanedWord) select cleanedWord.ToLower()).ToList();
+            var validWords =
+                (from t in listWords
+                    select Regex.Replace(t, @"[^\w\d\s]", "")
+                    into cleanedWord
+                    where !string.IsNullOrWhiteSpace(cleanedWord)
+                    select cleanedWord.ToLower()).ToList();
             foreach (var word in validWords)
             {
-                SqlCommand updateCommand = new($"update dbo.TableUsersLexicons set [Count] = [Count] + 1 where [Word] = '{word}' and [UserID] = {user.Id}", connection);
+                var cutWord = word;
+                if (word.Length > 100)
+                {
+                    cutWord = word[..100];
+                }
+
+                SqlCommand updateCommand =
+                    new(
+                        $"update dbo.TableUsersLexicons set [Count] = [Count] + 1 where [Word] = '{cutWord}' and [UserID] = {user.Id}",
+                        connection);
                 var rowsAffected = await updateCommand.ExecuteNonQueryAsync();
                 if (rowsAffected != 0) continue;
-                SqlCommand insertCommand = new($"insert into dbo.TableUsersLexicons (UserID, Word, Count) values ({user.Id}, '{word}', 1)", connection);
+                SqlCommand insertCommand =
+                    new($"insert into dbo.TableUsersLexicons (UserID, Word, Count) values ({user.Id}, '{cutWord}', 1)",
+                        connection);
                 await insertCommand.ExecuteNonQueryAsync();
             }
         }
 
-        public static void Mention(List<Users> users, string name, long chatId, ITelegramBotClient botClient, CancellationToken cancellationToken)
+        public static void Mention(List<Users> users, string name, long chatId, ITelegramBotClient botClient,
+            CancellationToken cancellationToken)
         {
             var res = $"{name} призывает ";
             using var db = new InfoContext();
@@ -261,17 +340,19 @@ namespace XpAndRepBot
             for (var i = 0; i < count; i++)
             {
                 res += $"<a href=\"tg://user?id={users[i].Id}\">{users[i].Name}</a> ";
-                if ((i + 1) % 5 == 0)
-                {
-                    botClient.SendTextMessageAsync(chatId: chatId, text: res, parseMode: ParseMode.Html, cancellationToken: cancellationToken);
-                    res = $"{name} призывает ";
-                }
+                if ((i + 1) % 5 != 0) continue;
+                botClient.SendTextMessageAsync(chatId: chatId, text: res, parseMode: ParseMode.Html,
+                    cancellationToken: cancellationToken);
+                res = $"{name} призывает ";
             }
+
             res += $"<a href=\"tg://user?id={users[count].Id}\">{users[count].Name}</a>";
-            botClient.SendTextMessageAsync(chatId: chatId, text: res, parseMode: ParseMode.Html, cancellationToken: cancellationToken);
+            botClient.SendTextMessageAsync(chatId: chatId, text: res, parseMode: ParseMode.Html,
+                cancellationToken: cancellationToken);
         }
 
-        public static async Task<string> Nfc(Users user, ITelegramBotClient botClient, CancellationToken cancellationToken)
+        public static async Task<string> Nfc(Users user, ITelegramBotClient botClient,
+            CancellationToken cancellationToken)
         {
             await using var db = new InfoContext();
             user.Nfc = false;
