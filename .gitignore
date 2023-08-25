@@ -363,3 +363,5 @@ MigrationBackup/
 FodyWeavers.xsd
 
 Consts.cs
+/XpAndRepBot.sln.DotSettings
+/Constants.cs
